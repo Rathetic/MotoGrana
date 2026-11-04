@@ -3,24 +3,29 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MotoGrana 🏍️ - Controle financeiro para motoboys</title>
+  <title>Movix – Sua jornada. Seu dinheiro. Seu controle.</title>
+  <meta name="theme-color" content="#07050d">
+  <meta name="description" content="Movix: controle financeiro para motoboys, motoristas de aplicativo e entregadores.">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="topo">
-    <h1>Moto<span>Grana</span> 🏍️</h1>
-    <p>Seu lucro real, sem complicação.</p>
+    <div class="marca">
+      <span class="logo" aria-hidden="true">M</span>
+      <h1>Movix</h1>
+    </div>
+    <p>Sua jornada. Seu dinheiro. Seu controle.</p>
   </header>
 
   <nav class="menu" aria-label="Seções">
-    <a href="#sec-resumo">Resumo</a>
-    <a href="#sec-graficos">Gráficos</a>
-    <a href="#sec-combustivel">Combustível</a>
-    <a href="#sec-manutencao">Manutenção</a>
-    <a href="#sec-jornada">Jornada</a>
-    <a href="#sec-cofrinho">Cofrinho</a>
-    <a href="#sec-recordes">Recordes</a>
-    <a href="#sec-backup">Backup</a>
+    <a href="#sec-resumo"><span class="ic">🏠</span><span>Resumo</span></a>
+    <a href="#sec-graficos"><span class="ic">📊</span><span>Gráficos</span></a>
+    <a href="#sec-combustivel"><span class="ic">⛽</span><span>Combustível</span></a>
+    <a href="#sec-manutencao"><span class="ic">🔧</span><span>Manutenção</span></a>
+    <a href="#sec-jornada"><span class="ic">⏱️</span><span>Jornada</span></a>
+    <a href="#sec-cofrinho"><span class="ic">🐷</span><span>Cofrinho</span></a>
+    <a href="#sec-recordes"><span class="ic">🏅</span><span>Recordes</span></a>
+    <a href="#sec-backup"><span class="ic">💾</span><span>Backup</span></a>
   </nav>
 
   <main class="container">
@@ -36,6 +41,10 @@
     <p id="alertaManutencao" class="alerta" hidden></p>
 
     <section class="cards" id="sec-resumo" aria-label="Resumo financeiro">
+      <article class="card card-lucro">
+        <h2>Lucro líquido</h2>
+        <strong id="totalLucro">R$ 0,00</strong>
+      </article>
       <article class="card card-ganho">
         <h2>Total de ganhos</h2>
         <strong id="totalGanhos">R$ 0,00</strong>
@@ -43,10 +52,6 @@
       <article class="card card-despesa">
         <h2>Total de despesas</h2>
         <strong id="totalDespesas">R$ 0,00</strong>
-      </article>
-      <article class="card card-lucro">
-        <h2>Lucro líquido</h2>
-        <strong id="totalLucro">R$ 0,00</strong>
       </article>
     </section>
 
@@ -172,7 +177,7 @@
 
     <!-- MANUTENÇÃO -->
     <section class="painel" id="sec-manutencao">
-      <h2>Manutenção da moto 🔧</h2>
+      <h2>Manutenção do veículo 🔧</h2>
       <p id="kmAtual" class="dica"></p>
       <h3 class="subtitulo">Lembretes</h3>
       <ul id="listaLembretes" class="historico"></ul>
@@ -185,7 +190,7 @@
         <div class="linha">
           <div><label for="valorManut">Valor (R$)</label><input type="number" id="valorManut" min="0" step="0.01" inputmode="decimal"></div>
           <div><label for="dataManut">Data</label><input type="date" id="dataManut"></div>
-          <div><label for="kmManut">Km da moto</label><input type="number" id="kmManut" min="0" step="1" inputmode="numeric"></div>
+          <div><label for="kmManut">Km do veículo</label><input type="number" id="kmManut" min="0" step="1" inputmode="numeric"></div>
         </div>
         <div class="linha-2">
           <div><label for="lembreteKm">Lembrar daqui a (km) – opcional</label><input type="number" id="lembreteKm" min="1" step="1" inputmode="numeric" placeholder="Ex.: 3000"></div>
@@ -254,6 +259,9 @@
     </section>
 
   </main>
+
+  <footer class="rodape">Movix • Sua jornada. Seu dinheiro. Seu controle.</footer>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="script.js"></script>
 </body>

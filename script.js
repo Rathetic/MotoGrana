@@ -1,5 +1,5 @@
 /* =====================================================
-   MotoGrana - lógica da aplicação
+   Movix - lógica da aplicação
    Organização:
    1. Configurações e estado
    2. Utilitários (dinheiro e datas)
@@ -12,12 +12,14 @@
 
 /* ---------- 1. Configurações e estado ---------- */
 
+// ATENÇÃO: as chaves do LocalStorage mantêm o prefixo "motograna:" de propósito.
+// Assim, os dados já salvos continuam sendo lidos, sem precisar de migração.
 const CHAVE_STORAGE = "motograna:movimentacoes";
 
 // Categorias disponíveis para cada tipo de movimentação
 const CATEGORIAS = {
-  ganho: ["iFood", "Uber Eats", "99", "Entrega particular", "Gorjeta", "Outros"],
-  despesa: ["Combustível", "Manutenção", "Alimentação", "Aluguel da moto", "Multa", "Outros"]
+  ganho: ["iFood", "Uber Eats", "99", "Uber", "Táxi", "Entrega particular", "Corrida particular", "Gorjeta", "Outros"],
+  despesa: ["Combustível", "Manutenção", "Alimentação", "Aluguel do veículo", "Pedágio", "Documentação/IPVA", "Multa", "Outros"]
 };
 
 // Lista de movimentações em memória. Cada item:
@@ -153,6 +155,7 @@ function validarFormulario() {
 }
 
 function mostrarErro(texto) {
+  toast(texto, true);
   mensagemErro.textContent = texto;
 }
 
@@ -300,6 +303,7 @@ function aoSalvarMeta() {
 
   aviso.classList.remove("erro-msg");
   aviso.textContent = metaSemanal > 0 ? "Meta salva!" : "Meta removida.";
+  toast(aviso.textContent);
   renderizarMeta();
 }
 
@@ -376,6 +380,7 @@ function proximoVersiculo() {
 /* ---------- 6.1 Backup (exportar / importar) ---------- */
 
 function mostrarAvisoBackup(texto, ehErro) {
+  toast(texto, ehErro);
   const aviso = document.getElementById("mensagemBackup");
   aviso.textContent = texto;
   aviso.classList.toggle("erro-msg", Boolean(ehErro));
@@ -387,14 +392,14 @@ function exportarBackup() {
     mostrarAvisoBackup("Não há movimentações para exportar.", true);
     return;
   }
-  const pacote = { versao: 2, movimentacoes, metaSemanal, combustivel: extras.combustivel, manutencoes: extras.manutencoes, turnos: extras.turnos, objetivos: extras.objetivos };
+  const pacote = { app: "Movix", versao: 2, movimentacoes, metaSemanal, combustivel: extras.combustivel, manutencoes: extras.manutencoes, turnos: extras.turnos, objetivos: extras.objetivos };
   const conteudo = JSON.stringify(pacote, null, 2);
   const arquivo = new Blob([conteudo], { type: "application/json" });
   const url = URL.createObjectURL(arquivo);
 
   const link = document.createElement("a");
   link.href = url;
-  link.download = "motograna-backup-" + dataParaTexto(new Date()) + ".json";
+  link.download = "movix-backup-" + dataParaTexto(new Date()) + ".json";
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -416,7 +421,7 @@ function importarBackup(arquivo) {
     try {
       dados = JSON.parse(leitor.result);
     } catch (erro) {
-      mostrarAvisoBackup("Arquivo inválido: não é um backup do MotoGrana.", true);
+      mostrarAvisoBackup("Arquivo inválido: não é um backup do Movix.", true);
       return;
     }
     // Aceita o formato antigo (lista de movimentações) e o novo (objeto com tudo)
@@ -481,7 +486,7 @@ const CAMPOS_NUM = {
 const TIPOS_MANUTENCAO = ["Troca de óleo", "Pneus", "Kit relação", "Freios", "Corrente", "Outra"];
 const extras = { combustivel: [], manutencoes: [], turnos: [], objetivos: [] };
 
-const COR_VERDE = "#22c55e", COR_VERMELHO = "#ef4444", COR_TEXTO = "#8fa196", COR_GRADE = "#26322c";
+const COR_VERDE = "#34d399", COR_VERMELHO = "#f87171", COR_VIOLETA = "#a78bfa", COR_TEXTO = "#a79fc2", COR_GRADE = "#2b2050";
 let tipoGrafico = "barras";
 let layoutGrafico = null; // posições do gráfico, usadas pelo balão de valores
 
@@ -499,7 +504,18 @@ function el(tag, classe, texto) {
   return e;
 }
 
+// Aviso rápido que aparece na tela e some sozinho
+function toast(texto, erro) {
+  if (!texto) return;
+  const t = $("toast");
+  t.textContent = texto;
+  t.className = "toast mostrar" + (erro ? " erro" : "");
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => t.classList.remove("mostrar"), 2800);
+}
+
 function aviso(id, texto, erro) {
+  toast(texto, erro);
   const a = $(id);
   a.textContent = texto;
   a.classList.toggle("erro-msg", Boolean(erro));
@@ -565,6 +581,7 @@ function removerExtra(nome, id) {
   extras[nome] = extras[nome].filter((i) => i.id !== id);
   salvarExtras(nome);
   atualizarExtras();
+  toast("Registro excluído.");
 }
 
 /* --- 1. Combustível --- */
@@ -639,7 +656,7 @@ function aoSalvarManutencao(ev) {
 
   if (tipo === "Outra" && desc === "") return aviso("mensagemManut", "Descreva a manutenção.", true);
   if (!isFinite(valor) || valor < 0) return aviso("mensagemManut", "Informe o valor (pode ser 0).", true);
-  if (!isFinite(km) || km < 0) return aviso("mensagemManut", "Informe a quilometragem da moto.", true);
+  if (!isFinite(km) || km < 0) return aviso("mensagemManut", "Informe a quilometragem do veículo.", true);
   if (!data) return aviso("mensagemManut", "Informe a data.", true);
 
   const item = { id: gerarId(), tipo, descricao: desc || tipo, valor: arred(valor), km, data };
@@ -691,7 +708,7 @@ function calcularLembretes() {
 function renderizarManutencao() {
   $("kmAtual").textContent = kmAtual() > 0
     ? "Km atual estimado: " + formatarNumero(kmAtual()) + " km (maior quilometragem registrada)."
-    : "Registre abastecimentos ou manutenções com quilometragem para acompanhar o km da moto.";
+    : "Registre abastecimentos ou manutenções com quilometragem para acompanhar o km do veículo.";
 
   const lembretes = calcularLembretes(), ul = $("listaLembretes");
   ul.innerHTML = "";
@@ -805,7 +822,7 @@ function desenharGrafico() {
     c.beginPath(); c.moveTo(esq, y(v)); c.lineTo(larg - dir, y(v)); c.stroke();
     c.fillText(formatarNumero(Math.round(v)), esq - 6, y(v));
   }
-  c.strokeStyle = "#4b5d52";
+  c.strokeStyle = "#5b4b8a";
   c.beginPath(); c.moveTo(esq, y(0)); c.lineTo(larg - dir, y(0)); c.stroke();
 
   // Rótulos do eixo horizontal (pula alguns quando há muitos)
@@ -814,10 +831,10 @@ function desenharGrafico() {
   pts.forEach((p, i) => { if (i % passo === 0) c.fillText(p.rotulo, esq + (i + 0.5) * slot, alt - base / 2); });
 
   if (tipoGrafico === "evolucao") {
-    c.strokeStyle = COR_VERDE; c.lineWidth = 2.5; c.beginPath();
+    c.strokeStyle = COR_VIOLETA; c.lineWidth = 2.5; c.beginPath();
     pts.forEach((p, i) => { const px = esq + (i + 0.5) * slot; if (i) c.lineTo(px, y(p.a)); else c.moveTo(px, y(p.a)); });
     c.stroke();
-    c.fillStyle = COR_VERDE;
+    c.fillStyle = COR_VIOLETA;
     pts.forEach((p, i) => { c.beginPath(); c.arc(esq + (i + 0.5) * slot, y(p.a), 3.5, 0, Math.PI * 2); c.fill(); });
   } else {
     const largBarra = (slot * 0.7) / series.length;
@@ -941,6 +958,7 @@ function movimentarObjetivo(id, sinal, valor) {
   o.guardado = arred(o.guardado + sinal * valor);
   salvarExtras("objetivos");
   aviso("mensagemCofrinho", "", false);
+  toast(sinal > 0 ? "Valor guardado no cofrinho!" : "Valor retirado do cofrinho.");
   atualizarExtras();
 }
 
@@ -1085,6 +1103,20 @@ function iniciarExtras() {
   canvas.addEventListener("pointerdown", mostrarTooltip);
   canvas.addEventListener("pointerleave", () => { $("tooltipGrafico").hidden = true; });
   window.addEventListener("resize", desenharGrafico);
+  iniciarMenu();
+}
+
+// Destaca no menu a seção que está visível na tela
+function iniciarMenu() {
+  if (!("IntersectionObserver" in window)) return;
+  const links = document.querySelectorAll(".menu a");
+  const observador = new IntersectionObserver((entradas) => {
+    entradas.forEach((e) => {
+      if (!e.isIntersecting) return;
+      links.forEach((l) => l.classList.toggle("ativo", l.getAttribute("href") === "#" + e.target.id));
+    });
+  }, { rootMargin: "-30% 0px -60% 0px" });
+  document.querySelectorAll("section[id^='sec-']").forEach((s) => observador.observe(s));
 }
 
 /* ---------- 7. Eventos e inicialização ---------- */
@@ -1114,6 +1146,7 @@ function aoEnviarFormulario(evento) {
   // Limpa descrição e valor, mantendo tipo e data para agilizar novos registros
   campoDescricao.value = "";
   campoValor.value = "";
+  toast("Movimentação registrada!");
   campoDescricao.focus();
 }
 
@@ -1125,6 +1158,7 @@ function aoClicarNoHistorico(evento) {
   movimentacoes = movimentacoes.filter(function (m) { return m.id !== botao.dataset.id; });
   salvarDados();
   atualizarTela();
+  toast("Movimentação excluída.");
 }
 
 function iniciar() {
