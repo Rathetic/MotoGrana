@@ -167,6 +167,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   animation: subir .3s ease;
 }
 .item .info { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.item .info strong { display: block; }
 .item .info small { color: var(--texto-suave); }
 .item .valor { font-weight: 700; white-space: nowrap; }
 .item.ganho, .item.ok { border-left-color: var(--verde); }
@@ -248,4 +249,27 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   .acoes-objetivo input { grid-column: 1 / -1; }
   .card strong { font-size: 1.3rem; }
   .card-lucro strong { font-size: 2rem; }
+}
+
+/* ===== Passo 2: menu lateral (desktop), cronômetro, garagem ===== */
+.menu .brand { display: none; }
+.cronometro { text-align: center; padding: 18px; margin-bottom: 8px; border: 1px solid var(--borda); border-radius: var(--raio); background: var(--fundo); }
+#cronometro { display: block; font-size: 2.6rem; font-weight: 800; letter-spacing: 1px; font-variant-numeric: tabular-nums; color: var(--violeta-claro); }
+.cronometro .btn-principal, .cronometro .btn-secundario { margin-top: 0; padding: 16px; }
+.novo-veiculo { margin-top: 12px; padding: 12px; border: 1px dashed var(--borda); border-radius: 12px; }
+.novo-veiculo summary { cursor: pointer; font-weight: 600; color: var(--violeta-claro); }
+@media (min-width: 900px) {
+  .topo { display: none; }
+  body { padding-left: 232px; }
+  section[id] { scroll-margin-top: 16px; }
+  .container { padding-top: 28px; }
+  .menu {
+    position: fixed; top: 0; left: 0; bottom: 0; width: 232px; flex-direction: column; gap: 6px;
+    padding: 22px 14px; overflow-y: auto; border-bottom: none; border-right: 1px solid var(--borda);
+    background: linear-gradient(180deg, #150b33, #07050d);
+  }
+  .menu .brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 20px; font-size: 1.35rem; }
+  .menu a { padding: 11px 14px; border-color: transparent; background: transparent; }
+  .menu a:hover { background: var(--painel-2); }
+  .menu a.ativo { box-shadow: 0 6px 18px rgba(124, 58, 237, .35); }
 }

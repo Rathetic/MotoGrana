@@ -18,10 +18,11 @@
   </header>
 
   <nav class="menu" aria-label="Seções">
+    <div class="brand"><span class="logo" aria-hidden="true">M</span><strong>Movix</strong></div>
     <a href="#sec-resumo"><span class="ic">🏠</span><span>Resumo</span></a>
     <a href="#sec-graficos"><span class="ic">📊</span><span>Gráficos</span></a>
     <a href="#sec-combustivel"><span class="ic">⛽</span><span>Combustível</span></a>
-    <a href="#sec-manutencao"><span class="ic">🔧</span><span>Manutenção</span></a>
+    <a href="#sec-manutencao"><span class="ic">🚗</span><span>Garagem</span></a>
     <a href="#sec-jornada"><span class="ic">⏱️</span><span>Jornada</span></a>
     <a href="#sec-cofrinho"><span class="ic">🐷</span><span>Cofrinho</span></a>
     <a href="#sec-recordes"><span class="ic">🏅</span><span>Recordes</span></a>
@@ -53,6 +54,27 @@
         <h2>Total de despesas</h2>
         <strong id="totalDespesas">R$ 0,00</strong>
       </article>
+    </section>
+
+    <section class="painel" id="sec-alertas">
+      <h2>Central de alertas 🔔</h2>
+      <ul id="listaAlertas" class="historico"></ul>
+    </section>
+
+    <section class="painel" id="sec-hoje">
+      <h2>Resumo de hoje 📋</h2>
+      <div id="resumoDia" class="periodo"></div>
+    </section>
+
+    <section class="painel">
+      <h2>Meta mensal 🎯</h2>
+      <p class="dica">Projeções baseadas só nos seus registros reais. Deixe em branco para remover a meta.</p>
+      <div class="meta-form">
+        <input type="number" id="campoMetaMensal" step="0.01" min="0" inputmode="decimal" placeholder="Ex.: 3500,00">
+        <button type="button" id="btnSalvarMetaMensal" class="btn-secundario">Salvar meta</button>
+      </div>
+      <p id="mensagemMetaMensal" class="aviso" role="status"></p>
+      <div id="resultadoMetaMensal" class="periodo resultado"></div>
     </section>
 
     <!-- META SEMANAL -->
@@ -113,6 +135,11 @@
       <div class="relatorio" id="relatorio"></div>
     </section>
 
+    <section class="painel">
+      <h2>Desempenho 📈</h2>
+      <div id="blocoDesempenho" class="periodo"></div>
+    </section>
+
     <!-- 3. HISTÓRICO -->
     <section class="painel">
       <h2>Histórico</h2>
@@ -167,7 +194,7 @@
         <label for="dataCombustivel">Data</label>
         <input type="date" id="dataCombustivel">
         <div id="resultadoCombustivel" class="periodo resultado"></div>
-        <label class="check"><input type="checkbox" id="lancarCombustivel"> Lançar o custo também como despesa (Combustível)</label>
+        <label class="check"><input type="checkbox" id="lancarCombustivel" checked> Lançar automaticamente nas despesas (desmarque se for lançar à mão)</label>
         <p id="mensagemCombustivel" class="aviso" role="status"></p>
         <button type="submit" class="btn-principal">Salvar cálculo</button>
       </form>
@@ -177,7 +204,31 @@
 
     <!-- MANUTENÇÃO -->
     <section class="painel" id="sec-manutencao">
-      <h2>Manutenção do veículo 🔧</h2>
+      <h2>Garagem 🚗</h2>
+      <label for="veiculoAtivo">Veículo selecionado</label>
+      <select id="veiculoAtivo"></select>
+      <div id="resumoVeiculo" class="periodo resultado"></div>
+      <details class="novo-veiculo">
+        <summary>➕ Cadastrar novo veículo</summary>
+        <form id="formVeiculo" novalidate>
+          <div class="linha-2">
+            <div><label for="tipoVeic">Tipo</label><select id="tipoVeic"><option>Motocicleta</option><option>Carro</option><option>Caminhão</option><option>Outro</option></select></div>
+            <div><label for="apelidoVeic">Apelido</label><input type="text" id="apelidoVeic" maxlength="30" placeholder="Ex.: Fazer 250"></div>
+          </div>
+          <div class="linha-2">
+            <div><label for="marcaVeic">Marca</label><input type="text" id="marcaVeic" maxlength="30"></div>
+            <div><label for="modeloVeic">Modelo</label><input type="text" id="modeloVeic" maxlength="30"></div>
+          </div>
+          <div class="linha">
+            <div><label for="anoVeic">Ano</label><input type="number" id="anoVeic" min="1950" step="1" inputmode="numeric"></div>
+            <div><label for="placaVeic">Placa (opcional)</label><input type="text" id="placaVeic" maxlength="8"></div>
+            <div><label for="kmVeic">Km atual</label><input type="number" id="kmVeic" min="0" step="1" inputmode="numeric"></div>
+          </div>
+          <button type="submit" class="btn-secundario" style="margin-top:12px;width:100%">Salvar veículo</button>
+        </form>
+        <p id="mensagemVeiculo" class="aviso" role="status"></p>
+      </details>
+      <button type="button" id="btnExcluirVeiculo" class="btn-link">Excluir o veículo selecionado</button>
       <p id="kmAtual" class="dica"></p>
       <h3 class="subtitulo">Lembretes</h3>
       <ul id="listaLembretes" class="historico"></ul>
@@ -196,7 +247,7 @@
           <div><label for="lembreteKm">Lembrar daqui a (km) – opcional</label><input type="number" id="lembreteKm" min="1" step="1" inputmode="numeric" placeholder="Ex.: 3000"></div>
           <div><label for="lembreteData">Lembrar na data – opcional</label><input type="date" id="lembreteData"></div>
         </div>
-        <label class="check"><input type="checkbox" id="lancarManut"> Lançar o valor também como despesa (Manutenção)</label>
+        <p class="dica">Se houver valor, ele entra automaticamente nas despesas (categoria Manutenção veicular).</p>
         <p id="mensagemManut" class="aviso" role="status"></p>
         <button type="submit" class="btn-principal">Registrar manutenção</button>
       </form>
@@ -207,6 +258,15 @@
     <!-- JORNADA -->
     <section class="painel" id="sec-jornada">
       <h2>Jornada de trabalho ⏱️</h2>
+      <div class="cronometro">
+        <strong id="cronometro">00:00:00</strong>
+        <p id="estadoTurno" class="dica"></p>
+        <div class="botoes-backup">
+          <button type="button" id="btnTurnoPrincipal" class="btn-principal">▶ Iniciar turno</button>
+          <button type="button" id="btnTurnoPausa" class="btn-secundario" hidden>⏸ Pausar</button>
+        </div>
+        <p class="dica">Use com o veículo parado. Nunca mexa no app enquanto estiver dirigindo ou pilotando.</p>
+      </div>
       <div id="resumoTurnos" class="periodo resultado"></div>
       <form id="formTurno" novalidate>
         <div class="linha">
@@ -214,9 +274,10 @@
           <div><label for="inicioTurno">Início</label><input type="time" id="inicioTurno"></div>
           <div><label for="fimTurno">Término</label><input type="time" id="fimTurno"></div>
         </div>
-        <div class="linha-2">
+        <div class="linha">
           <div><label for="ganhosTurno">Ganhos no turno (R$)</label><input type="number" id="ganhosTurno" min="0" step="0.01" inputmode="decimal"></div>
           <div><label for="entregasTurno">Entregas realizadas</label><input type="number" id="entregasTurno" min="0" step="1" inputmode="numeric"></div>
+          <div><label for="kmTurno">Km rodados (opcional)</label><input type="number" id="kmTurno" min="0" step="0.1" inputmode="decimal"></div>
         </div>
         <button type="button" id="btnGanhosDoDia" class="btn-link">Usar os ganhos já registrados nesta data</button>
         <p id="mensagemTurno" class="aviso" role="status"></p>

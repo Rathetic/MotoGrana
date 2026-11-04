@@ -19,7 +19,7 @@ const CHAVE_STORAGE = "motograna:movimentacoes";
 // Categorias disponíveis para cada tipo de movimentação
 const CATEGORIAS = {
   ganho: ["iFood", "Uber Eats", "99", "Uber", "Táxi", "Entrega particular", "Corrida particular", "Gorjeta", "Outros"],
-  despesa: ["Combustível", "Manutenção", "Alimentação", "Aluguel do veículo", "Pedágio", "Documentação/IPVA", "Multa", "Outros"]
+  despesa: ["Combustível", "Manutenção", "Manutenção veicular", "Alimentação", "Aluguel do veículo", "Pedágio", "Documentação/IPVA", "Multa", "Outros"]
 };
 
 // Lista de movimentações em memória. Cada item:
@@ -392,7 +392,7 @@ function exportarBackup() {
     mostrarAvisoBackup("Não há movimentações para exportar.", true);
     return;
   }
-  const pacote = { app: "Movix", versao: 2, movimentacoes, metaSemanal, combustivel: extras.combustivel, manutencoes: extras.manutencoes, turnos: extras.turnos, objetivos: extras.objetivos };
+  const pacote = { app: "Movix", versao: 2, movimentacoes, metaSemanal, combustivel: extras.combustivel, manutencoes: extras.manutencoes, turnos: extras.turnos, objetivos: extras.objetivos, veiculos: extras.veiculos, metaMensal };
   const conteudo = JSON.stringify(pacote, null, 2);
   const arquivo = new Blob([conteudo], { type: "application/json" });
   const url = URL.createObjectURL(arquivo);
@@ -445,7 +445,8 @@ function importarBackup(arquivo) {
           tipo: item.tipo,
           categoria: item.categoria,
           valor: item.valor,
-          data: item.data
+          data: item.data,
+          ...(item.origem && typeof item.origem.id === "string" ? { origem: { tipo: String(item.origem.tipo), id: item.origem.id } } : {})
         });
         idsExistentes.add(item.id);
         adicionados++;
@@ -474,17 +475,19 @@ const CHAVES_EXTRAS = {
   combustivel: "motograna:combustivel",
   manutencoes: "motograna:manutencoes",
   turnos: "motograna:turnos",
-  objetivos: "motograna:objetivos"
+  objetivos: "motograna:objetivos",
+  veiculos: "motograna:veiculos"
 };
 // Campos numéricos obrigatórios de cada tipo (valida dados salvos e importados)
 const CAMPOS_NUM = {
   combustivel: ["kmInicial", "kmFinal", "consumo", "preco", "custo"],
   manutencoes: ["valor", "km"],
   turnos: ["minutos", "ganhos", "entregas"],
-  objetivos: ["meta", "guardado"]
+  objetivos: ["meta", "guardado"],
+  veiculos: ["kmAtual"]
 };
 const TIPOS_MANUTENCAO = ["Troca de óleo", "Pneus", "Kit relação", "Freios", "Corrente", "Outra"];
-const extras = { combustivel: [], manutencoes: [], turnos: [], objetivos: [] };
+const extras = { combustivel: [], manutencoes: [], turnos: [], objetivos: [], veiculos: [] };
 
 const COR_VERDE = "#34d399", COR_VERMELHO = "#f87171", COR_VIOLETA = "#a78bfa", COR_TEXTO = "#a79fc2", COR_GRADE = "#2b2050";
 let tipoGrafico = "barras";
@@ -524,8 +527,11 @@ function aviso(id, texto, erro) {
 const ganhosDoDia = (data) => (data ? calcularTotais(data, data).ganhos : 0);
 
 // Registra uma despesa na lista principal (usada pelas opções "lançar também como despesa")
-function lancarDespesa(descricao, categoria, valor, data) {
-  movimentacoes.push({ id: gerarId(), descricao: descricao.slice(0, 60), tipo: "despesa", categoria, valor: arred(valor), data });
+function lancarDespesa(descricao, categoria, valor, data, origem) {
+  if (origem && movimentacoes.some((m) => m.origem && m.origem.id === origem.id)) return; // evita duplicidade
+  const mov = { id: gerarId(), descricao: descricao.slice(0, 60), tipo: "despesa", categoria, valor: arred(valor), data };
+  if (origem) mov.origem = origem; // liga a despesa ao abastecimento/manutenção que a gerou
+  movimentacoes.push(mov);
   salvarDados();
 }
 
@@ -557,7 +563,7 @@ const maisRecentes = (lista) => [...lista].sort((a, b) => b.data.localeCompare(a
 /* --- Persistência dos dados novos --- */
 function itemExtraValido(nome, i) {
   return Boolean(i) && typeof i.id === "string"
-    && (nome === "objetivos" || /^\d{4}-\d{2}-\d{2}$/.test(i.data))
+    && (nome === "objetivos" || nome === "veiculos" || /^\d{4}-\d{2}-\d{2}$/.test(i.data))
     && CAMPOS_NUM[nome].every((c) => typeof i[c] === "number" && isFinite(i[c]));
 }
 
@@ -580,7 +586,10 @@ function salvarExtras(nome) {
 function removerExtra(nome, id) {
   extras[nome] = extras[nome].filter((i) => i.id !== id);
   salvarExtras(nome);
-  atualizarExtras();
+  // apaga SOMENTE a despesa vinculada a este registro
+  movimentacoes = movimentacoes.filter((m) => !(m.origem && m.origem.id === id));
+  salvarDados();
+  atualizarTela();
   toast("Registro excluído.");
 }
 
@@ -620,10 +629,11 @@ function aoSalvarCombustivel(ev) {
     aviso("mensagemCombustivel", "Confira os campos: o km final deve ser maior que o inicial e os demais valores devem ser positivos.", true);
     return;
   }
-  extras.combustivel.push({ id: gerarId(), data, ...r });
+  const id = gerarId();
+  extras.combustivel.push({ id, data, veiculoId: veiculoAtivo, ...r });
   salvarExtras("combustivel");
   if ($("lancarCombustivel").checked) {
-    lancarDespesa("Combustível • " + formatarNumero(r.distancia) + " km", "Combustível", r.custo, data);
+    lancarDespesa("Combustível • " + formatarNumero(r.distancia) + " km • " + nomeVeiculo(), "Combustível", r.custo, data, { tipo: "combustivel", id });
   }
   $("kmInicial").value = r.kmFinal; // o próximo trajeto começa onde este terminou
   $("kmFinal").value = "";
@@ -634,8 +644,9 @@ function aoSalvarCombustivel(ev) {
 function renderizarListaCombustivel() {
   const ul = $("listaCombustivel");
   ul.innerHTML = "";
-  if (!extras.combustivel.length) return listaVazia(ul, "Nenhum cálculo salvo ainda.");
-  maisRecentes(extras.combustivel).forEach((c) => ul.append(criarItem(
+  const doVeiculo = extras.combustivel.filter((c) => c.veiculoId === veiculoAtivo);
+  if (!doVeiculo.length) return listaVazia(ul, "Nenhum abastecimento deste veículo ainda.");
+  maisRecentes(doVeiculo).forEach((c) => ul.append(criarItem(
     "despesa",
     formatarData(c.data) + " • " + formatarNumero(c.distancia) + " km",
     formatarNumero(c.litros) + " L a " + formatarMoeda(c.preco) + "/L • " + formatarNumero(c.consumo) + " km/L",
@@ -646,7 +657,7 @@ function renderizarListaCombustivel() {
 
 /* --- 2. Manutenção --- */
 // Maior quilometragem já registrada (abastecimentos e manutenções)
-const kmAtual = () => Math.max(0, ...extras.combustivel.map((c) => c.kmFinal), ...extras.manutencoes.map((m) => m.km));
+// (kmAtual agora é calculado por veículo, na seção 6.3)
 
 function aoSalvarManutencao(ev) {
   ev.preventDefault();
@@ -659,13 +670,13 @@ function aoSalvarManutencao(ev) {
   if (!isFinite(km) || km < 0) return aviso("mensagemManut", "Informe a quilometragem do veículo.", true);
   if (!data) return aviso("mensagemManut", "Informe a data.", true);
 
-  const item = { id: gerarId(), tipo, descricao: desc || tipo, valor: arred(valor), km, data };
+  const item = { id: gerarId(), tipo, descricao: desc || tipo, valor: arred(valor), km, data, veiculoId: veiculoAtivo };
   if (isFinite(intervaloKm) && intervaloKm > 0) item.proxKm = km + intervaloKm;
   if (proxData) item.proxData = proxData;
 
   extras.manutencoes.push(item);
   salvarExtras("manutencoes");
-  if ($("lancarManut").checked && item.valor > 0) lancarDespesa(item.descricao, "Manutenção", item.valor, data);
+  if (item.valor > 0) lancarDespesa(item.descricao + " • " + nomeVeiculo(), "Manutenção veicular", item.valor, data, { tipo: "manutencao", id: item.id });
 
   ["descManut", "valorManut", "lembreteKm", "lembreteData"].forEach((id) => { $(id).value = ""; });
   aviso("mensagemManut", "Manutenção registrada!", false);
@@ -676,11 +687,11 @@ function aoSalvarManutencao(ev) {
 function calcularLembretes() {
   const ultimos = {};
   extras.manutencoes.forEach((m) => {
-    const chave = m.tipo === "Outra" ? m.descricao : m.tipo;
+    const chave = m.veiculoId + "|" + (m.tipo === "Outra" ? m.descricao : m.tipo);
     const a = ultimos[chave];
     if (!a || m.data > a.data || (m.data === a.data && m.km >= a.km)) ultimos[chave] = m;
   });
-  const hoje = dataParaTexto(new Date()), km = kmAtual();
+  const hoje = dataParaTexto(new Date());
   const limite = new Date();
   limite.setDate(limite.getDate() + 7);
   const em7dias = dataParaTexto(limite);
@@ -696,7 +707,7 @@ function calcularLembretes() {
         else { motivos.push("até " + formatarData(m.proxData)); if (m.proxData <= em7dias) estado = "breve"; }
       }
       if (m.proxKm !== undefined) {
-        const falta = m.proxKm - km;
+        const falta = m.proxKm - kmDoVeiculo(m.veiculoId);
         if (falta <= 0) { estado = "vencido"; motivos.push("passou de " + formatarNumero(m.proxKm) + " km"); }
         else { motivos.push("faltam " + formatarNumero(falta) + " km"); if (falta <= 300 && estado === "ok") estado = "breve"; }
       }
@@ -710,21 +721,22 @@ function renderizarManutencao() {
     ? "Km atual estimado: " + formatarNumero(kmAtual()) + " km (maior quilometragem registrada)."
     : "Registre abastecimentos ou manutenções com quilometragem para acompanhar o km do veículo.";
 
-  const lembretes = calcularLembretes(), ul = $("listaLembretes");
+  const todos = calcularLembretes(), lembretes = todos.filter((l) => l.m.veiculoId === veiculoAtivo), ul = $("listaLembretes");
   ul.innerHTML = "";
   if (!lembretes.length) listaVazia(ul, "Nenhum lembrete programado.");
   const rotulos = { vencido: "Vencido", breve: "Em breve", ok: "Em dia" };
   lembretes.forEach((l) => ul.append(criarItem(l.estado, l.m.descricao, l.texto, rotulos[l.estado])));
 
-  const urgentes = lembretes.filter((l) => l.estado !== "ok").length;
+  const urgentes = todos.filter((l) => l.estado !== "ok").length;
   const alerta = $("alertaManutencao");
   alerta.hidden = urgentes === 0;
   alerta.textContent = "🔧 " + urgentes + (urgentes === 1 ? " manutenção vencida ou perto de vencer" : " manutenções vencidas ou perto de vencer") + ". Veja a seção Manutenção.";
 
   const hist = $("listaManutencao");
   hist.innerHTML = "";
-  if (!extras.manutencoes.length) return listaVazia(hist, "Nenhuma manutenção registrada ainda.");
-  maisRecentes(extras.manutencoes).forEach((m) => hist.append(criarItem(
+  const doVeiculo = extras.manutencoes.filter((m) => m.veiculoId === veiculoAtivo);
+  if (!doVeiculo.length) return listaVazia(hist, "Nenhuma manutenção deste veículo ainda.");
+  maisRecentes(doVeiculo).forEach((m) => hist.append(criarItem(
     "neutro", m.descricao, formatarData(m.data) + " • " + formatarNumero(m.km) + " km", formatarMoeda(m.valor),
     () => removerExtra("manutencoes", m.id)
   )));
@@ -894,19 +906,24 @@ const horasTexto = (min) => Math.floor(min / 60) + "h" + String(min % 60).padSta
 function aoSalvarTurno(ev) {
   ev.preventDefault();
   const data = $("dataTurno").value, ini = $("inicioTurno").value, fim = $("fimTurno").value;
-  const ganhos = num("ganhosTurno"), entregas = num("entregasTurno");
+  const ganhos = num("ganhosTurno"), entregas = num("entregasTurno"), km = num("kmTurno");
 
   if (!data || !ini || !fim) return aviso("mensagemTurno", "Informe data, início e término.", true);
   let minutos = paraMinutos(fim) - paraMinutos(ini);
   if (minutos === 0) return aviso("mensagemTurno", "Início e término não podem ser iguais.", true);
   if (minutos < 0) minutos += 1440; // turno que passa da meia-noite
+  minutos = Math.max(1, minutos - pausaPendente); // desconta as pausas (duração efetiva)
   if (!isFinite(ganhos) || ganhos < 0) return aviso("mensagemTurno", "Informe os ganhos do turno.", true);
   if (!Number.isInteger(entregas) || entregas < 0) return aviso("mensagemTurno", "Informe a quantidade de entregas (número inteiro).", true);
 
-  extras.turnos.push({ id: gerarId(), data, inicio: ini, fim, minutos, ganhos: arred(ganhos), entregas });
+  const automatico = prefillTurno && prefillTurno.data === data && prefillTurno.ini === ini && prefillTurno.fim === fim;
+  extras.turnos.push({ id: gerarId(), data, inicio: ini, fim, minutos, ganhos: arred(ganhos), entregas, pausaMin: pausaPendente, registro: automatico ? "automático" : "manual", ...(isFinite(km) && km >= 0 ? { km } : {}) });
+  pausaPendente = 0;
+  prefillTurno = null;
   salvarExtras("turnos");
   $("ganhosTurno").value = "";
   $("entregasTurno").value = "";
+  $("kmTurno").value = "";
   aviso("mensagemTurno", "Turno registrado!", false);
   atualizarTela();
 }
@@ -928,7 +945,7 @@ function renderizarTurnos() {
   );
   maisRecentes(extras.turnos).forEach((x) => ul.append(criarItem(
     "ganho",
-    formatarData(x.data) + " • " + x.inicio + " às " + x.fim + " (" + horasTexto(x.minutos) + ")",
+    formatarData(x.data) + " • " + x.inicio + " às " + x.fim + " (" + horasTexto(x.minutos) + ")" + (x.registro === "manual" ? " • horário manual" : ""),
     formatarMoeda(arred(x.ganhos / (x.minutos / 60))) + "/h • " + x.entregas + " entregas" + (x.entregas > 0 ? " • " + formatarMoeda(arred(x.ganhos / x.entregas)) + "/entrega" : ""),
     formatarMoeda(x.ganhos),
     () => removerExtra("turnos", x.id)
@@ -1037,6 +1054,12 @@ function renderizarRecordes() {
 const temDadosExtras = () => Object.keys(extras).some((n) => extras[n].length > 0) || metaSemanal > 0;
 
 function importarExtras(pacote) {
+  // Se o app só tem o veículo padrão vazio, ele sai para dar lugar aos veículos do backup
+  const padrao = extras.veiculos[0];
+  if (Array.isArray(pacote.veiculos) && pacote.veiculos.length && extras.veiculos.length === 1 && padrao.apelido === "Minha moto" && !padrao.marca && padrao.kmAtual === 0
+      && !extras.combustivel.some((c) => c.veiculoId === padrao.id) && !extras.manutencoes.some((m) => m.veiculoId === padrao.id)) {
+    extras.veiculos = [];
+  }
   Object.keys(extras).forEach((nome) => {
     const lista = Array.isArray(pacote[nome]) ? pacote[nome] : [];
     const ids = new Set(extras[nome].map((i) => i.id));
@@ -1051,6 +1074,321 @@ function importarExtras(pacote) {
     try { localStorage.setItem(CHAVE_META, String(meta)); } catch (erro) { /* ignora */ }
     $("campoMeta").value = meta;
   }
+  const mensal = parseFloat(pacote.metaMensal);
+  if (metaMensal <= 0 && isFinite(mensal) && mensal > 0) {
+    metaMensal = mensal;
+    try { localStorage.setItem(CHAVE_META_MENSAL, String(mensal)); } catch (erro) { /* ignora */ }
+    $("campoMetaMensal").value = mensal;
+  }
+  prepararVeiculos(); // liga registros importados sem veículo ao veículo padrão
+}
+
+/* ---------- 6.3 Passo 2: garagem, turno ao vivo, metas, resumo e alertas ---------- */
+
+// Planos: preparado para o futuro, mas NADA é bloqueado ou cobrado por enquanto.
+const PLANOS = { free: { maxVeiculos: 1 }, premium: { maxVeiculos: Infinity } };
+const PLANO_ATUAL = "free";
+const APLICAR_LIMITE_PLANO = false;
+
+const CHAVE_VEICULO_ATIVO = "motograna:veiculoAtivo";
+const CHAVE_TURNO = "motograna:turnoAtual";
+const CHAVE_META_MENSAL = "motograna:metaMensal";
+let veiculoAtivo = "";
+let turnoAtual = null;   // { inicio: ms, pausas: [{ de: ms, ate: ms | null }] }
+let metaMensal = 0;
+let pausaPendente = 0;   // minutos de pausa do turno encerrado, usados ao registrar o turno
+let prefillTurno = null; // horários preenchidos pelo cronômetro (para saber se foram corrigidos à mão)
+
+const moeda = (v) => formatarMoeda(arred(v));
+const veiculoAtivoId = () => veiculoAtivo;
+const nomeDoVeiculo = (id) => { const v = extras.veiculos.find((x) => x.id === id); return v ? v.apelido : "Veículo"; };
+const nomeVeiculo = () => nomeDoVeiculo(veiculoAtivo);
+const kmDoVeiculo = (vid) => Math.max(0,
+  ...extras.veiculos.filter((v) => v.id === vid).map((v) => v.kmAtual),
+  ...extras.combustivel.filter((c) => c.veiculoId === vid).map((c) => c.kmFinal),
+  ...extras.manutencoes.filter((m) => m.veiculoId === vid).map((m) => m.km));
+const kmAtual = () => kmDoVeiculo(veiculoAtivo);
+
+/* --- Garagem --- */
+// Garante um veículo padrão e liga a ele os registros antigos (sem veículo)
+function prepararVeiculos() {
+  if (!extras.veiculos.length) {
+    extras.veiculos.push({ id: gerarId(), tipo: "Motocicleta", marca: "", modelo: "", ano: "", placa: "", apelido: "Minha moto", kmAtual: 0 });
+    salvarExtras("veiculos");
+  }
+  const padrao = extras.veiculos[0].id;
+  ["combustivel", "manutencoes"].forEach((nome) => {
+    let mudou = false;
+    extras[nome].forEach((i) => { if (!i.veiculoId) { i.veiculoId = padrao; mudou = true; } });
+    if (mudou) salvarExtras(nome);
+  });
+  let salvo = "";
+  try { salvo = localStorage.getItem(CHAVE_VEICULO_ATIVO) || ""; } catch (erro) { /* ignora */ }
+  veiculoAtivo = extras.veiculos.some((v) => v.id === salvo) ? salvo : padrao;
+}
+
+function definirVeiculoAtivo(id) {
+  veiculoAtivo = id;
+  try { localStorage.setItem(CHAVE_VEICULO_ATIVO, id); } catch (erro) { /* ignora */ }
+}
+
+function aoSalvarVeiculo(ev) {
+  ev.preventDefault();
+  const apelido = $("apelidoVeic").value.trim(), km = num("kmVeic"), ano = $("anoVeic").value.trim();
+  if (apelido === "") return aviso("mensagemVeiculo", "Dê um apelido ao veículo.", true);
+  if (ano !== "" && !(Number(ano) >= 1950 && Number(ano) <= new Date().getFullYear() + 1)) return aviso("mensagemVeiculo", "Informe um ano válido.", true);
+  if (isFinite(km) && km < 0) return aviso("mensagemVeiculo", "A quilometragem não pode ser negativa.", true);
+  if (APLICAR_LIMITE_PLANO && extras.veiculos.length >= PLANOS[PLANO_ATUAL].maxVeiculos) return aviso("mensagemVeiculo", "Seu plano permite apenas " + PLANOS[PLANO_ATUAL].maxVeiculos + " veículo(s).", true);
+  const v = { id: gerarId(), tipo: $("tipoVeic").value, marca: $("marcaVeic").value.trim(), modelo: $("modeloVeic").value.trim(), ano, placa: $("placaVeic").value.trim().toUpperCase(), apelido: apelido.slice(0, 30), kmAtual: isFinite(km) ? km : 0 };
+  extras.veiculos.push(v);
+  salvarExtras("veiculos");
+  definirVeiculoAtivo(v.id);
+  $("formVeiculo").reset();
+  $("formVeiculo").closest("details").open = false;
+  aviso("mensagemVeiculo", "Veículo cadastrado!", false);
+  atualizarTela();
+}
+
+function aoExcluirVeiculo() {
+  const id = veiculoAtivo;
+  if (extras.veiculos.length <= 1) return toast("Mantenha ao menos um veículo cadastrado.", true);
+  if (extras.combustivel.some((c) => c.veiculoId === id) || extras.manutencoes.some((m) => m.veiculoId === id)) {
+    return toast("Exclua antes os abastecimentos e manutenções deste veículo.", true);
+  }
+  if (!confirm("Excluir o veículo " + nomeVeiculo() + "?")) return;
+  extras.veiculos = extras.veiculos.filter((v) => v.id !== id);
+  salvarExtras("veiculos");
+  definirVeiculoAtivo(extras.veiculos[0].id);
+  atualizarTela();
+  toast("Veículo excluído.");
+}
+
+// Custo por km: SEMPRE uma estimativa parcial (só combustível e manutenção do veículo)
+function custoPorKm(vid) {
+  const comb = extras.combustivel.filter((c) => c.veiculoId === vid), man = extras.manutencoes.filter((m) => m.veiculoId === vid);
+  const kms = [...comb.flatMap((c) => [c.kmInicial, c.kmFinal]), ...man.map((m) => m.km)];
+  const km = kms.length ? Math.max(...kms) - Math.min(...kms) : 0;
+  const custo = comb.reduce((s, c) => s + c.custo, 0) + man.reduce((s, m) => s + m.valor, 0);
+  return km > 0 && custo > 0 ? { valor: custo / km, km } : null;
+}
+
+function renderizarGaragem() {
+  const sel = $("veiculoAtivo"), box = $("resumoVeiculo");
+  sel.innerHTML = "";
+  box.innerHTML = "";
+  extras.veiculos.forEach((v) => { const o = el("option", "", v.apelido + (v.placa ? " • " + v.placa : "")); o.value = v.id; sel.append(o); });
+  sel.value = veiculoAtivo;
+  const v = extras.veiculos.find((x) => x.id === veiculoAtivo);
+  if (!v) return;
+  const c = custoPorKm(v.id);
+  box.append(
+    linhaInfo(v.tipo, [v.marca, v.modelo, v.ano].filter(Boolean).join(" ") || "—"),
+    linhaInfo("Km atual", formatarNumero(kmDoVeiculo(v.id)) + " km"),
+    linhaInfo("Custo por km (parcial)", c ? moeda(c.valor) + "/km" : "dados insuficientes", "l")
+  );
+  box.append(el("p", "dica", c ? "Estimativa parcial: usa combustível e manutenção de " + formatarNumero(c.km) + " km registrados. Outras despesas não entram." : "Registre abastecimentos e manutenções com quilometragem para estimar."));
+}
+
+/* --- Turno ao vivo (iniciar, pausar, encerrar) --- */
+function carregarTurnoAtual() {
+  try {
+    const t = JSON.parse(localStorage.getItem(CHAVE_TURNO));
+    turnoAtual = t && typeof t.inicio === "number" && Array.isArray(t.pausas) ? t : null;
+  } catch (erro) { turnoAtual = null; }
+}
+function salvarTurnoAtual() {
+  try {
+    if (turnoAtual) localStorage.setItem(CHAVE_TURNO, JSON.stringify(turnoAtual));
+    else localStorage.removeItem(CHAVE_TURNO);
+  } catch (erro) { /* ignora */ }
+}
+const emPausa = () => Boolean(turnoAtual) && turnoAtual.pausas.some((p) => p.ate === null);
+const msPausado = (agora) => turnoAtual.pausas.reduce((s, p) => s + ((p.ate === null ? agora : p.ate) - p.de), 0);
+const horaLocal = (ms) => { const d = new Date(ms); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
+const formatarCrono = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return [Math.floor(s / 3600), Math.floor((s % 3600) / 60), s % 60].map((n) => String(n).padStart(2, "0")).join(":"); };
+
+function renderizarTurnoAtual() {
+  const agora = Date.now(), principal = $("btnTurnoPrincipal"), pausa = $("btnTurnoPausa");
+  if (!turnoAtual) {
+    $("cronometro").textContent = "00:00:00";
+    $("estadoTurno").textContent = "Nenhum turno em andamento.";
+    principal.textContent = "▶ Iniciar turno";
+    pausa.hidden = true;
+    return;
+  }
+  $("cronometro").textContent = formatarCrono(agora - turnoAtual.inicio - msPausado(agora));
+  $("estadoTurno").textContent = (emPausa() ? "⏸ Em pausa • " : "Em andamento • ") + "iniciado às " + horaLocal(turnoAtual.inicio) + " de " + formatarData(dataParaTexto(new Date(turnoAtual.inicio)));
+  principal.textContent = "⏹ Encerrar turno";
+  pausa.hidden = false;
+  pausa.textContent = emPausa() ? "▶ Retomar" : "⏸ Pausar";
+}
+
+function aoClicarTurnoPrincipal() {
+  if (!turnoAtual) {
+    turnoAtual = { inicio: Date.now(), pausas: [] };
+    salvarTurnoAtual();
+    toast("Turno iniciado!");
+  } else {
+    if (!confirm("Encerrar o turno agora?")) return; // nunca encerra sem confirmação
+    const agora = Date.now();
+    turnoAtual.pausas.forEach((p) => { if (p.ate === null) p.ate = agora; });
+    pausaPendente = Math.round(msPausado(agora) / 60000);
+    $("dataTurno").value = dataParaTexto(new Date(turnoAtual.inicio));
+    $("inicioTurno").value = horaLocal(turnoAtual.inicio);
+    $("fimTurno").value = horaLocal(agora);
+    prefillTurno = { data: $("dataTurno").value, ini: $("inicioTurno").value, fim: $("fimTurno").value };
+    turnoAtual = null;
+    salvarTurnoAtual();
+    toast("Turno encerrado. Informe ganhos e entregas e registre.");
+    $("formTurno").scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  atualizarExtras();
+}
+
+function aoClicarPausa() {
+  if (!turnoAtual) return;
+  const agora = Date.now();
+  if (emPausa()) turnoAtual.pausas.forEach((p) => { if (p.ate === null) p.ate = agora; });
+  else turnoAtual.pausas.push({ de: agora, ate: null });
+  salvarTurnoAtual();
+  renderizarTurnoAtual();
+}
+
+/* --- Meta mensal inteligente (usa só dados reais) --- */
+function carregarMetaMensal() {
+  try {
+    const v = parseFloat(localStorage.getItem(CHAVE_META_MENSAL));
+    metaMensal = isFinite(v) && v > 0 ? v : 0;
+  } catch (erro) { metaMensal = 0; }
+}
+
+function aoSalvarMetaMensal() {
+  const texto = $("campoMetaMensal").value.trim(), v = texto === "" ? 0 : parseFloat(texto);
+  if (!isFinite(v) || v < 0) return aviso("mensagemMetaMensal", "Informe um valor válido.", true);
+  metaMensal = arred(v);
+  try {
+    if (metaMensal > 0) localStorage.setItem(CHAVE_META_MENSAL, String(metaMensal));
+    else localStorage.removeItem(CHAVE_META_MENSAL);
+  } catch (erro) { return aviso("mensagemMetaMensal", "Não foi possível salvar neste navegador.", true); }
+  aviso("mensagemMetaMensal", metaMensal > 0 ? "Meta mensal salva!" : "Meta mensal removida.", false);
+  renderizarMetaMensal();
+  renderizarAlertas();
+}
+
+function renderizarMetaMensal() {
+  const box = $("resultadoMetaMensal");
+  box.innerHTML = "";
+  if (metaMensal <= 0) { box.append(el("p", "dica", "Defina uma meta mensal de lucro para ver as projeções.")); return; }
+  const hoje = new Date(), p = obterPeriodos()[2], t = calcularTotais(p.inicio, p.fim);
+  const diasMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate();
+  const decorridos = hoje.getDate(), restantes = diasMes - decorridos + 1;
+  const falta = arred(metaMensal - t.lucro);
+  const linhas = [
+    linhaInfo("Faturamento bruto", moeda(t.ganhos), "g"),
+    linhaInfo("Despesas", moeda(t.despesas), "d"),
+    linhaInfo("Lucro líquido", moeda(t.lucro), t.lucro < 0 ? "d" : "g"),
+    linhaInfo("Margem (lucro ÷ bruto)", t.ganhos > 0 ? Math.round((t.lucro / t.ganhos) * 100) + "%" : "—")
+  ];
+  if (falta > 0) {
+    linhas.push(linhaInfo("Falta para a meta", moeda(falta), "l"),
+      linhaInfo("Lucro por dia (" + restantes + " dias)", moeda(falta / restantes)),
+      linhaInfo("Lucro por semana", moeda(falta / (restantes / 7))));
+  } else linhas.push(linhaInfo("Meta batida! 🎉", "", "l g"));
+  const temDados = t.ganhos > 0 || t.despesas > 0;
+  linhas.push(linhaInfo("Projeção no ritmo atual", temDados ? moeda(t.lucro + (t.lucro / decorridos) * (diasMes - decorridos)) : "sem dados"));
+  const barra = el("div", "barra"), cheio = el("div", "barra-preenchimento");
+  cheio.style.width = Math.max(0, Math.min(100, (t.lucro / metaMensal) * 100)) + "%";
+  barra.append(cheio);
+  box.append(...linhas, barra);
+}
+
+/* --- Resumo do dia e lucro real --- */
+function renderizarResumoDia() {
+  const hoje = dataParaTexto(new Date()), box = $("resumoDia");
+  let ganhos = 0, comb = 0, manut = 0, outras = 0;
+  box.innerHTML = "";
+  movimentacoes.forEach((m) => {
+    if (m.data !== hoje) return;
+    if (m.tipo === "ganho") ganhos += m.valor;
+    else if (m.categoria === "Combustível") comb += m.valor;
+    else if (m.categoria.startsWith("Manutenção")) manut += m.valor;
+    else outras += m.valor;
+  });
+  const turnos = extras.turnos.filter((t) => t.data === hoje);
+  const soma = (campo) => turnos.reduce((s, t) => s + (t[campo] || 0), 0);
+  const kmAbast = extras.combustivel.filter((c) => c.data === hoje).reduce((s, c) => s + c.distancia, 0);
+  const km = soma("km") > 0 ? soma("km") : kmAbast;
+  const lucro = arred(ganhos - comb - manut - outras);
+  box.append(
+    linhaInfo("Ganhos brutos", moeda(ganhos), "g"),
+    linhaInfo("Combustível", moeda(comb), "d"),
+    linhaInfo("Manutenção", moeda(manut), "d"),
+    linhaInfo("Outras despesas", moeda(outras), "d"),
+    linhaInfo("Lucro líquido", moeda(lucro), lucro < 0 ? "l d" : "l g"),
+    linhaInfo("Entregas", String(soma("entregas"))),
+    linhaInfo("Km rodados", km > 0 ? formatarNumero(km) + " km" : "—"),
+    linhaInfo("Tempo trabalhado", soma("minutos") > 0 ? horasTexto(soma("minutos")) : "—")
+  );
+}
+
+/* --- Desempenho: comparações e médias --- */
+const deslocar = (texto, dias) => { const [a, m, d] = texto.split("-").map(Number); const dt = new Date(a, m - 1, d + dias); return dataParaTexto(dt); };
+
+function linhaComparacao(rotulo, atual, anterior) {
+  const variacao = anterior !== 0 ? (atual >= anterior ? " ▲ " : " ▼ ") + Math.abs(Math.round(((atual - anterior) / Math.abs(anterior)) * 100)) + "%" : "";
+  return linhaInfo(rotulo, moeda(atual) + " (antes " + moeda(anterior) + ")" + variacao, atual >= anterior ? "g" : "d");
+}
+
+function renderizarDesempenho() {
+  const box = $("blocoDesempenho"), p = obterPeriodos(), hoje = dataParaTexto(new Date());
+  box.innerHTML = "";
+  const lucro = (i, f) => calcularTotais(i, f).lucro;
+  const h = new Date(), mesAntes = [dataParaTexto(new Date(h.getFullYear(), h.getMonth() - 1, 1)), dataParaTexto(new Date(h.getFullYear(), h.getMonth(), 0))];
+  box.append(
+    linhaComparacao("Hoje x ontem", lucro(hoje, hoje), lucro(deslocar(hoje, -1), deslocar(hoje, -1))),
+    linhaComparacao("Semana x anterior", lucro(p[1].inicio, p[1].fim), lucro(deslocar(p[1].inicio, -7), deslocar(p[1].inicio, -1))),
+    linhaComparacao("Mês x anterior", lucro(p[2].inicio, p[2].fim), lucro(mesAntes[0], mesAntes[1]))
+  );
+  const dias = agruparMovimentacoes("dia"), chaves = Object.keys(dias);
+  if (!chaves.length) return box.append(el("p", "dica", "Registre movimentações para ver médias e o melhor dia da semana."));
+  const nomes = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"], porDia = nomes.map(() => ({ s: 0, n: 0 }));
+  let total = 0;
+  chaves.forEach((k) => {
+    const [a, m, d] = k.split("-").map(Number), w = new Date(a, m - 1, d).getDay(), l = dias[k].g - dias[k].d;
+    porDia[w].s += l; porDia[w].n++; total += l;
+  });
+  let melhor = -1;
+  porDia.forEach((x, i) => { if (x.n && (melhor < 0 || x.s / x.n > porDia[melhor].s / porDia[melhor].n)) melhor = i; });
+  box.append(linhaInfo("Média de lucro por dia trabalhado", moeda(total / chaves.length)),
+    linhaInfo("Melhor dia da semana (média)", nomes[melhor] + " • " + moeda(porDia[melhor].s / porDia[melhor].n), "l g"));
+}
+
+/* --- Central de alertas --- */
+function renderizarAlertas() {
+  const ul = $("listaAlertas"), itens = [], p = obterPeriodos();
+  ul.innerHTML = "";
+  calcularLembretes().filter((l) => l.estado !== "ok").forEach((l) => itens.push([l.estado, "🔧 " + l.m.descricao + " • " + nomeDoVeiculo(l.m.veiculoId), l.texto]));
+  if (turnoAtual) {
+    const h = (Date.now() - turnoAtual.inicio) / 3600000;
+    itens.push([h > 12 ? "vencido" : "ok", "⏱️ Turno " + (emPausa() ? "pausado" : "em andamento"), h > 12 ? "Aberto há " + Math.floor(h) + " h. Encerre se já terminou." : "Iniciado às " + horaLocal(turnoAtual.inicio)]);
+  }
+  const semana = calcularTotais(p[1].inicio, p[1].fim), mes = calcularTotais(p[2].inicio, p[2].fim);
+  if (metaSemanal > 0) itens.push([semana.lucro >= metaSemanal ? "ok" : "neutro", "🎯 Meta semanal", Math.max(0, Math.round((semana.lucro / metaSemanal) * 100)) + "% • lucro " + moeda(semana.lucro) + " de " + moeda(metaSemanal)]);
+  if (metaMensal > 0) itens.push([mes.lucro >= metaMensal ? "ok" : "neutro", "🎯 Meta mensal", Math.max(0, Math.round((mes.lucro / metaMensal) * 100)) + "% • lucro " + moeda(mes.lucro) + " de " + moeda(metaMensal)]);
+  itens.push(["neutro", "📈 Resumo da semana", "Ganhos " + moeda(semana.ganhos) + " • despesas " + moeda(semana.despesas) + " • lucro " + moeda(semana.lucro)]);
+  itens.push(["neutro", "📈 Resumo do mês", "Ganhos " + moeda(mes.ganhos) + " • despesas " + moeda(mes.despesas) + " • lucro " + moeda(mes.lucro)]);
+  itens.forEach(([estado, titulo, detalhe]) => ul.append(criarItem(estado, titulo, detalhe, "")));
+}
+
+function iniciarNovos() {
+  $("formVeiculo").addEventListener("submit", aoSalvarVeiculo);
+  $("veiculoAtivo").addEventListener("change", (ev) => { definirVeiculoAtivo(ev.target.value); atualizarExtras(); });
+  $("btnExcluirVeiculo").addEventListener("click", aoExcluirVeiculo);
+  $("btnTurnoPrincipal").addEventListener("click", aoClicarTurnoPrincipal);
+  $("btnTurnoPausa").addEventListener("click", aoClicarPausa);
+  $("btnSalvarMetaMensal").addEventListener("click", aoSalvarMetaMensal);
+  if (metaMensal > 0) $("campoMetaMensal").value = metaMensal;
+  setInterval(renderizarTurnoAtual, 1000);
 }
 
 /* --- Atualização e eventos das novas funções --- */
@@ -1062,10 +1400,19 @@ function atualizarExtras() {
   renderizarObjetivos();
   renderizarRecordes();
   desenharGrafico();
+  renderizarGaragem();
+  renderizarTurnoAtual();
+  renderizarMetaMensal();
+  renderizarResumoDia();
+  renderizarDesempenho();
+  renderizarAlertas();
 }
 
 function iniciarExtras() {
   carregarExtras();
+  prepararVeiculos();
+  carregarTurnoAtual();
+  carregarMetaMensal();
   const hoje = dataParaTexto(new Date());
   ["dataCombustivel", "dataManut", "dataTurno"].forEach((id) => { $(id).value = hoje; });
   TIPOS_MANUTENCAO.forEach((t) => { const o = el("option", "", t); o.value = t; $("tipoManut").append(o); });
@@ -1103,6 +1450,7 @@ function iniciarExtras() {
   canvas.addEventListener("pointerdown", mostrarTooltip);
   canvas.addEventListener("pointerleave", () => { $("tooltipGrafico").hidden = true; });
   window.addEventListener("resize", desenharGrafico);
+  iniciarNovos();
   iniciarMenu();
 }
 
