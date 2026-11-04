@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MotoGrana 🏍️ - Controle financeiro para motoboys</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topo">
+    <h1>Moto<span>Grana</span> 🏍️</h1>
+    <p>Seu lucro real, sem complicação.</p>
+  </header>
+
+  <nav class="menu" aria-label="Seções">
+    <a href="#sec-resumo">Resumo</a>
+    <a href="#sec-graficos">Gráficos</a>
+    <a href="#sec-combustivel">Combustível</a>
+    <a href="#sec-manutencao">Manutenção</a>
+    <a href="#sec-jornada">Jornada</a>
+    <a href="#sec-cofrinho">Cofrinho</a>
+    <a href="#sec-recordes">Recordes</a>
+    <a href="#sec-backup">Backup</a>
+  </nav>
+
+  <main class="container">
+
+    <!-- 0. PALAVRA DE INCENTIVO -->
+    <section class="versiculo" aria-label="Palavra de incentivo">
+      <p id="textoVersiculo"></p>
+      <small id="refVersiculo"></small>
+      <button type="button" id="btnOutroVersiculo" class="btn-link">Outra frase 🔄</button>
+    </section>
+
+    <!-- 1. DASHBOARD: totais gerais -->
+    <p id="alertaManutencao" class="alerta" hidden></p>
+
+    <section class="cards" id="sec-resumo" aria-label="Resumo financeiro">
+      <article class="card card-ganho">
+        <h2>Total de ganhos</h2>
+        <strong id="totalGanhos">R$ 0,00</strong>
+      </article>
+      <article class="card card-despesa">
+        <h2>Total de despesas</h2>
+        <strong id="totalDespesas">R$ 0,00</strong>
+      </article>
+      <article class="card card-lucro">
+        <h2>Lucro líquido</h2>
+        <strong id="totalLucro">R$ 0,00</strong>
+      </article>
+    </section>
+
+    <!-- META SEMANAL -->
+    <section class="painel">
+      <h2>Meta semanal 🎯</h2>
+      <p class="dica">Defina quanto de lucro líquido você quer fazer por semana (segunda a domingo). Deixe em branco para remover a meta.</p>
+      <div class="meta-form">
+        <input type="number" id="campoMeta" step="0.01" min="0" inputmode="decimal" placeholder="Ex.: 800,00">
+        <button type="button" id="btnSalvarMeta" class="btn-secundario">Salvar meta</button>
+      </div>
+      <p id="mensagemMeta" class="aviso" role="status"></p>
+      <div id="progressoMeta" hidden>
+        <div class="barra"><div class="barra-preenchimento" id="barraMeta"></div></div>
+        <p id="textoProgresso" class="progresso-texto"></p>
+        <p id="textoDiario" class="dica"></p>
+      </div>
+    </section>
+
+    <!-- 2. FORMULÁRIO de nova movimentação -->
+    <section class="painel">
+      <h2>Nova movimentação</h2>
+      <form id="formMovimentacao" novalidate>
+        <div class="tipo-toggle" role="radiogroup" aria-label="Tipo">
+          <label class="opt-ganho">
+            <input type="radio" name="tipo" value="ganho" checked> Ganho
+          </label>
+          <label class="opt-despesa">
+            <input type="radio" name="tipo" value="despesa"> Despesa
+          </label>
+        </div>
+
+        <label for="descricao">Descrição</label>
+        <input type="text" id="descricao" maxlength="60" placeholder="Ex.: Corridas da noite">
+
+        <div class="linha">
+          <div>
+            <label for="categoria">Categoria</label>
+            <select id="categoria"></select>
+          </div>
+          <div>
+            <label for="valor">Valor (R$)</label>
+            <input type="number" id="valor" step="0.01" min="0.01" inputmode="decimal" placeholder="0,00">
+          </div>
+          <div>
+            <label for="data">Data</label>
+            <input type="date" id="data">
+          </div>
+        </div>
+
+        <p id="mensagemErro" class="erro" role="alert"></p>
+        <button type="submit" class="btn-principal">Registrar</button>
+      </form>
+    </section>
+
+    <!-- 5. RELATÓRIO: dia, semana e mês -->
+    <section class="painel">
+      <h2>Relatório financeiro</h2>
+      <div class="relatorio" id="relatorio"></div>
+    </section>
+
+    <!-- 3. HISTÓRICO -->
+    <section class="painel">
+      <h2>Histórico</h2>
+      <ul id="listaHistorico" class="historico"></ul>
+    </section>
+
+    <!-- GRÁFICOS -->
+    <section class="painel" id="sec-graficos">
+      <h2>Gráficos 📊</h2>
+      <div class="abas" id="abasGrafico">
+        <button type="button" class="aba ativa" data-grafico="barras">Ganhos x Despesas</button>
+        <button type="button" class="aba" data-grafico="lucro">Lucro</button>
+        <button type="button" class="aba" data-grafico="evolucao">Evolução</button>
+        <button type="button" class="aba" data-grafico="categorias">Despesas por categoria</button>
+      </div>
+      <div class="linha-2">
+        <div>
+          <label for="filtroPeriodo">Período</label>
+          <select id="filtroPeriodo">
+            <option value="semana">Esta semana</option>
+            <option value="mes" selected>Este mês</option>
+            <option value="tudo">Todo o período</option>
+          </select>
+        </div>
+        <div>
+          <label for="filtroAgrupar">Agrupar por</label>
+          <select id="filtroAgrupar">
+            <option value="dia" selected>Dia</option>
+            <option value="semana">Semana</option>
+            <option value="mes">Mês</option>
+          </select>
+        </div>
+      </div>
+      <div class="grafico-wrap">
+        <canvas id="canvasGrafico"></canvas>
+        <div id="tooltipGrafico" class="tooltip" hidden></div>
+      </div>
+      <div id="graficoCategorias" hidden></div>
+      <p id="legendaGrafico" class="dica">🟩 Ganhos &nbsp; 🟥 Despesas • Toque ou passe o mouse nas barras para ver os valores.</p>
+    </section>
+
+    <!-- CALCULADORA DE COMBUSTÍVEL -->
+    <section class="painel" id="sec-combustivel">
+      <h2>Calculadora de combustível ⛽</h2>
+      <form id="formCombustivel" novalidate>
+        <div class="linha-4">
+          <div><label for="kmInicial">Km inicial</label><input type="number" id="kmInicial" min="0" step="0.1" inputmode="decimal"></div>
+          <div><label for="kmFinal">Km final</label><input type="number" id="kmFinal" min="0" step="0.1" inputmode="decimal"></div>
+          <div><label for="consumo">Consumo (km/L)</label><input type="number" id="consumo" min="0.1" step="0.1" inputmode="decimal"></div>
+          <div><label for="precoLitro">Preço do litro (R$)</label><input type="number" id="precoLitro" min="0.01" step="0.01" inputmode="decimal"></div>
+        </div>
+        <label for="dataCombustivel">Data</label>
+        <input type="date" id="dataCombustivel">
+        <div id="resultadoCombustivel" class="periodo resultado"></div>
+        <label class="check"><input type="checkbox" id="lancarCombustivel"> Lançar o custo também como despesa (Combustível)</label>
+        <p id="mensagemCombustivel" class="aviso" role="status"></p>
+        <button type="submit" class="btn-principal">Salvar cálculo</button>
+      </form>
+      <h3 class="subtitulo">Histórico de abastecimentos</h3>
+      <ul id="listaCombustivel" class="historico"></ul>
+    </section>
+
+    <!-- MANUTENÇÃO -->
+    <section class="painel" id="sec-manutencao">
+      <h2>Manutenção da moto 🔧</h2>
+      <p id="kmAtual" class="dica"></p>
+      <h3 class="subtitulo">Lembretes</h3>
+      <ul id="listaLembretes" class="historico"></ul>
+      <h3 class="subtitulo">Registrar manutenção</h3>
+      <form id="formManutencao" novalidate>
+        <div class="linha-2">
+          <div><label for="tipoManut">Tipo</label><select id="tipoManut"></select></div>
+          <div><label for="descManut">Descrição (obrigatória em "Outra")</label><input type="text" id="descManut" maxlength="60" placeholder="Ex.: Troca de vela"></div>
+        </div>
+        <div class="linha">
+          <div><label for="valorManut">Valor (R$)</label><input type="number" id="valorManut" min="0" step="0.01" inputmode="decimal"></div>
+          <div><label for="dataManut">Data</label><input type="date" id="dataManut"></div>
+          <div><label for="kmManut">Km da moto</label><input type="number" id="kmManut" min="0" step="1" inputmode="numeric"></div>
+        </div>
+        <div class="linha-2">
+          <div><label for="lembreteKm">Lembrar daqui a (km) – opcional</label><input type="number" id="lembreteKm" min="1" step="1" inputmode="numeric" placeholder="Ex.: 3000"></div>
+          <div><label for="lembreteData">Lembrar na data – opcional</label><input type="date" id="lembreteData"></div>
+        </div>
+        <label class="check"><input type="checkbox" id="lancarManut"> Lançar o valor também como despesa (Manutenção)</label>
+        <p id="mensagemManut" class="aviso" role="status"></p>
+        <button type="submit" class="btn-principal">Registrar manutenção</button>
+      </form>
+      <h3 class="subtitulo">Histórico</h3>
+      <ul id="listaManutencao" class="historico"></ul>
+    </section>
+
+    <!-- JORNADA -->
+    <section class="painel" id="sec-jornada">
+      <h2>Jornada de trabalho ⏱️</h2>
+      <div id="resumoTurnos" class="periodo resultado"></div>
+      <form id="formTurno" novalidate>
+        <div class="linha">
+          <div><label for="dataTurno">Data</label><input type="date" id="dataTurno"></div>
+          <div><label for="inicioTurno">Início</label><input type="time" id="inicioTurno"></div>
+          <div><label for="fimTurno">Término</label><input type="time" id="fimTurno"></div>
+        </div>
+        <div class="linha-2">
+          <div><label for="ganhosTurno">Ganhos no turno (R$)</label><input type="number" id="ganhosTurno" min="0" step="0.01" inputmode="decimal"></div>
+          <div><label for="entregasTurno">Entregas realizadas</label><input type="number" id="entregasTurno" min="0" step="1" inputmode="numeric"></div>
+        </div>
+        <button type="button" id="btnGanhosDoDia" class="btn-link">Usar os ganhos já registrados nesta data</button>
+        <p id="mensagemTurno" class="aviso" role="status"></p>
+        <button type="submit" class="btn-principal">Registrar turno</button>
+      </form>
+      <h3 class="subtitulo">Turnos</h3>
+      <ul id="listaTurnos" class="historico"></ul>
+    </section>
+
+    <!-- COFRINHO -->
+    <section class="painel" id="sec-cofrinho">
+      <h2>Cofrinho de objetivos 🐷</h2>
+      <form id="formObjetivo" novalidate>
+        <div class="linha-2">
+          <div><label for="nomeObjetivo">Objetivo</label><input type="text" id="nomeObjetivo" maxlength="40" placeholder="Ex.: Reserva de emergência"></div>
+          <div><label for="metaObjetivo">Valor desejado (R$)</label><input type="number" id="metaObjetivo" min="0.01" step="0.01" inputmode="decimal"></div>
+        </div>
+        <button type="submit" class="btn-secundario" style="margin-top:12px;width:100%">Criar objetivo</button>
+      </form>
+      <p id="mensagemCofrinho" class="aviso" role="status"></p>
+      <div id="listaObjetivos"></div>
+    </section>
+
+    <!-- RECORDES -->
+    <section class="painel" id="sec-recordes">
+      <h2>Recordes pessoais 🏅</h2>
+      <div id="gradeRecordes" class="grade-stats"></div>
+    </section>
+
+    <!-- 6. BACKUP: exportar e importar dados em arquivo -->
+    <section class="painel" id="sec-backup">
+      <h2>Backup dos dados</h2>
+      <p class="dica">Salve seus registros em um arquivo para guardar ou levar para outro aparelho.</p>
+      <div class="botoes-backup">
+        <button type="button" id="btnExportar" class="btn-secundario">⬇️ Exportar backup</button>
+        <button type="button" id="btnImportar" class="btn-secundario">⬆️ Importar backup</button>
+        <input type="file" id="arquivoImportar" accept=".json,application/json" hidden>
+      </div>
+      <p id="mensagemBackup" class="aviso" role="status"></p>
+    </section>
+
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
