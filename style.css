@@ -88,7 +88,7 @@ body {
 
 /* ===== Formulários ===== */
 label { display: block; font-size: .85rem; color: var(--texto-suave); margin: 12px 0 4px; }
-input[type="text"], input[type="number"], input[type="date"], input[type="time"], select {
+input[type="text"], input[type="number"], input[type="date"], input[type="time"], input[type="email"], input[type="password"], select {
   width: 100%; padding: 12px; font-size: 1rem; color: var(--texto);
   background: var(--fundo); border: 1px solid var(--borda); border-radius: 12px;
   transition: border-color .2s, box-shadow .2s;

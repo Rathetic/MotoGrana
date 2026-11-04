@@ -26,6 +26,7 @@
     <a href="#sec-jornada"><span class="ic">⏱️</span><span>Jornada</span></a>
     <a href="#sec-cofrinho"><span class="ic">🐷</span><span>Cofrinho</span></a>
     <a href="#sec-recordes"><span class="ic">🏅</span><span>Recordes</span></a>
+    <a href="#sec-conta"><span class="ic">👤</span><span>Conta</span></a>
     <a href="#sec-backup"><span class="ic">💾</span><span>Backup</span></a>
   </nav>
 
@@ -308,6 +309,53 @@
     </section>
 
     <!-- 6. BACKUP: exportar e importar dados em arquivo -->
+    <!-- CONTA (Fase 3.2) -->
+    <section class="painel" id="sec-conta">
+      <h2>Minha conta 👤</h2>
+      <p id="contaAviso" class="alerta" hidden></p>
+
+      <div id="contaVisitante" hidden>
+        <p class="dica">Crie uma conta para guardar seus dados na nuvem e usar o Movix em vários aparelhos (a sincronização chega na próxima etapa).</p>
+        <div class="abas" id="abasConta">
+          <button type="button" class="aba ativa" data-modo="entrar">Entrar</button>
+          <button type="button" class="aba" data-modo="criar">Criar conta</button>
+        </div>
+        <form id="formAuth" novalidate>
+          <div id="campoNomeAuth" hidden>
+            <label for="authNome">Nome (opcional)</label>
+            <input type="text" id="authNome" maxlength="80" autocomplete="name">
+          </div>
+          <label for="authEmail">E-mail</label>
+          <input type="email" id="authEmail" autocomplete="email" inputmode="email">
+          <label for="authSenha">Senha</label>
+          <input type="password" id="authSenha" autocomplete="current-password">
+          <div id="campoConfirmarAuth" hidden>
+            <label for="authConfirmar">Confirmar senha</label>
+            <input type="password" id="authConfirmar" autocomplete="new-password">
+          </div>
+          <p id="mensagemAuth" class="aviso" role="alert"></p>
+          <button type="submit" id="btnAuth" class="btn-principal">Entrar</button>
+        </form>
+        <button type="button" id="btnEsqueci" class="btn-link">Esqueci minha senha</button>
+      </div>
+
+      <div id="contaLogada" hidden>
+        <div id="resumoConta" class="periodo"></div>
+        <p class="dica" style="margin-top:12px">Seus dados continuam salvos neste aparelho. A sincronização na nuvem será ativada na próxima etapa.</p>
+        <button type="button" id="btnSair" class="btn-secundario" style="width:100%">Sair da conta</button>
+      </div>
+
+      <form id="formNovaSenha" novalidate hidden>
+        <p class="dica">Defina sua nova senha.</p>
+        <label for="novaSenha">Nova senha</label>
+        <input type="password" id="novaSenha" autocomplete="new-password">
+        <label for="novaSenhaConfirmar">Confirmar nova senha</label>
+        <input type="password" id="novaSenhaConfirmar" autocomplete="new-password">
+        <p id="mensagemNovaSenha" class="aviso" role="alert"></p>
+        <button type="submit" class="btn-principal">Salvar nova senha</button>
+      </form>
+    </section>
+
     <section class="painel" id="sec-backup">
       <h2>Backup dos dados</h2>
       <p class="dica">Salve seus registros em um arquivo para guardar ou levar para outro aparelho.</p>
@@ -324,6 +372,8 @@
   <footer class="rodape">Movix • Sua jornada. Seu dinheiro. Seu controle.</footer>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
+  <script src="config.js"></script>
   <script src="script.js"></script>
+  <script src="auth.js"></script>
 </body>
 </html>
