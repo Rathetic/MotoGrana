@@ -7,8 +7,49 @@
   <meta name="theme-color" content="#07050d">
   <meta name="description" content="Movix: controle financeiro para motoboys, motoristas de aplicativo e entregadores.">
   <link rel="stylesheet" href="style.css">
+  <script src="config.js"></script>
+  <script>
+    /* Decide a tela ANTES de desenhar a página: sem login e com Supabase configurado -> Lobby. */
+    (function () {
+      var cfg = typeof MOVIX_CONFIG === "object" && MOVIX_CONFIG ? MOVIX_CONFIG : {};
+      var temSessao = false, modoLocal = false;
+      try { temSessao = !!localStorage.getItem("movix:sessao"); modoLocal = localStorage.getItem("movix:modo-local") === "1"; } catch (e) {}
+      var link = /access_token|error_description/.test(location.hash); // link de e-mail (confirmação/recuperação)
+      window.__movixLinkEmail = link;
+      if (cfg.supabaseUrl && cfg.supabaseAnonKey && !temSessao && !modoLocal) {
+        document.documentElement.classList.add("lobby-ativo");
+        if (link) document.documentElement.classList.add("tela-auth");
+      }
+    })();
+  </script>
 </head>
 <body>
+  <!-- LOBBY: tela inicial para quem não está logado (conteúdo ilustrativo, sem dados reais) -->
+  <div id="lobby" class="lobby">
+    <main class="lobby-conteudo">
+      <div class="lobby-marca"><span class="logo" aria-hidden="true">M</span><strong>MOVIX</strong></div>
+      <h1>Seu corre. Seu dinheiro. <span class="destaque">Seu controle.</span></h1>
+      <p class="lobby-sub">Organize seus ganhos, acompanhe seus gastos e tenha o controle da sua vida financeira em um só lugar.</p>
+
+      <div class="lobby-previa" aria-hidden="true">
+        <div class="cards">
+          <article class="card card-lucro"><h2>Lucro líquido</h2><strong>R$ 177,00</strong></article>
+          <article class="card card-ganho"><h2>Ganhos do dia</h2><strong>R$ 245,00</strong></article>
+          <article class="card card-despesa"><h2>Despesas</h2><strong>R$ 68,00</strong></article>
+          <article class="card card-comb"><h2>⛽ Combustível</h2><strong>R$ 32,00</strong><small>100 km • 40 km/L</small></article>
+        </div>
+        <small class="legenda">Exemplo ilustrativo. Seus dados reais aparecem depois do login.</small>
+      </div>
+
+      <div class="lobby-acoes">
+        <button type="button" id="lobbyEntrar" class="btn-principal">Entrar na minha conta</button>
+        <button type="button" id="lobbyCriar" class="btn-secundario">Criar minha conta</button>
+      </div>
+      <button type="button" id="lobbyLocal" class="btn-link">Usar sem conta (só neste aparelho)</button>
+    </main>
+    <footer class="lobby-rodape">Feito para quem vive do corre.</footer>
+  </div>
+
   <header class="topo">
     <div class="marca">
       <span class="logo" aria-hidden="true">M</span>
@@ -311,6 +352,7 @@
     <!-- 6. BACKUP: exportar e importar dados em arquivo -->
     <!-- CONTA (Fase 3.2) -->
     <section class="painel" id="sec-conta">
+      <button type="button" id="authVoltar" class="btn-link so-lobby">← Voltar</button>
       <h2>Minha conta 👤</h2>
       <p id="contaAviso" class="alerta" hidden></p>
 
@@ -390,9 +432,9 @@
   <footer class="rodape">Movix • Sua jornada. Seu dinheiro. Seu controle.</footer>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="config.js"></script>
   <script src="script.js"></script>
   <script src="auth.js"></script>
   <script src="sync.js"></script>
+  <script src="lobby.js"></script>
 </body>
 </html>
