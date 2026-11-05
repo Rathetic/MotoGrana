@@ -315,7 +315,7 @@
       <p id="contaAviso" class="alerta" hidden></p>
 
       <div id="contaVisitante" hidden>
-        <p class="dica">Crie uma conta para guardar seus dados na nuvem e usar o Movix em vários aparelhos (a sincronização chega na próxima etapa).</p>
+        <p class="dica">Crie uma conta para guardar seus dados na nuvem e usar o Movix em vários aparelhos.</p>
         <div class="abas" id="abasConta">
           <button type="button" class="aba ativa" data-modo="entrar">Entrar</button>
           <button type="button" class="aba" data-modo="criar">Criar conta</button>
@@ -341,7 +341,25 @@
 
       <div id="contaLogada" hidden>
         <div id="resumoConta" class="periodo"></div>
-        <p class="dica" style="margin-top:12px">Seus dados continuam salvos neste aparelho. A sincronização na nuvem será ativada na próxima etapa.</p>
+        <h3 class="subtitulo">Sincronização</h3>
+        <div id="statusSync" class="periodo"></div>
+        <p id="erroSync" class="aviso erro-msg" role="alert"></p>
+        <button type="button" id="btnSyncAtivar" class="btn-principal" hidden>☁️ Ativar sincronização</button>
+        <div id="botoesSync" class="botoes-backup" hidden>
+          <button type="button" id="btnSyncAgora" class="btn-secundario">🔄 Sincronizar agora</button>
+          <button type="button" id="btnSyncPausar" class="btn-secundario">⏸ Pausar</button>
+        </div>
+        <div id="botoesMigracao" class="botoes-backup" style="margin-top:10px" hidden>
+          <button type="button" id="btnDuplicatas" class="btn-secundario">🔎 Procurar duplicatas</button>
+          <button type="button" id="btnRestaurarPreventivo" class="btn-secundario">♻️ Restaurar backup preventivo</button>
+        </div>
+        <div id="blocoDuplicatas" hidden></div>
+        <button type="button" id="btnDiagnostico" class="btn-secundario" style="width:100%;margin-top:10px" hidden>🩺 Testar conexão com o banco</button>
+        <div id="resultadoDiagnostico" class="periodo resultado" hidden></div>
+        <button type="button" id="btnCopiarDiagnostico" class="btn-link" hidden>📋 Copiar relatório</button>
+        <h3 class="subtitulo" id="tituloRelatorio" hidden>Relatório da última migração</h3>
+        <div id="relatorioMigracao" class="periodo" hidden></div>
+        <p class="dica" style="margin:12px 0">Os dados continuam salvos neste aparelho e funcionam sem internet.</p>
         <button type="button" id="btnSair" class="btn-secundario" style="width:100%">Sair da conta</button>
       </div>
 
@@ -375,5 +393,6 @@
   <script src="config.js"></script>
   <script src="script.js"></script>
   <script src="auth.js"></script>
+  <script src="sync.js"></script>
 </body>
 </html>

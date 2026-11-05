@@ -386,13 +386,18 @@ function mostrarAvisoBackup(texto, ehErro) {
   aviso.classList.toggle("erro-msg", Boolean(ehErro));
 }
 
+// Monta o pacote completo de dados (usado no backup e na sincronização)
+function montarPacoteBackup() {
+  return { app: "Movix", versao: 2, movimentacoes, metaSemanal, combustivel: extras.combustivel, manutencoes: extras.manutencoes, turnos: extras.turnos, objetivos: extras.objetivos, veiculos: extras.veiculos, metaMensal };
+}
+
 // Baixa um arquivo .json com todas as movimentações
 function exportarBackup() {
   if (movimentacoes.length === 0 && !temDadosExtras()) {
     mostrarAvisoBackup("Não há movimentações para exportar.", true);
     return;
   }
-  const pacote = { app: "Movix", versao: 2, movimentacoes, metaSemanal, combustivel: extras.combustivel, manutencoes: extras.manutencoes, turnos: extras.turnos, objetivos: extras.objetivos, veiculos: extras.veiculos, metaMensal };
+  const pacote = montarPacoteBackup();
   const conteudo = JSON.stringify(pacote, null, 2);
   const arquivo = new Blob([conteudo], { type: "application/json" });
   const url = URL.createObjectURL(arquivo);
@@ -457,6 +462,7 @@ function importarBackup(arquivo) {
 
     salvarDados();
     atualizarTela();
+    document.dispatchEvent(new CustomEvent("movix:backup-importado", { detail: { texto: leitor.result, adicionados, ignorados } }));
     mostrarAvisoBackup(
       adicionados + " movimentações importadas" +
       (ignorados > 0 ? " (" + ignorados + " ignoradas: repetidas ou inválidas)." : "."),

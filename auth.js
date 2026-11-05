@@ -314,6 +314,7 @@ function renderizarConta() {
       linhaInfo("Sessão", conectado ? "Ativa" : "Sem internet (reconecta sozinha)", conectado ? "g" : "d")
     );
   }
+  if (typeof renderizarSync === "function") renderizarSync();
 }
 
 /* ---------- 7. Inicialização ---------- */
