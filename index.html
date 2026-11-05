@@ -6,7 +6,12 @@
   <title>Movix – Sua jornada. Seu dinheiro. Seu controle.</title>
   <meta name="theme-color" content="#07050d">
   <meta name="description" content="Movix: controle financeiro para motoboys, motoristas de aplicativo e entregadores.">
-  <link rel="stylesheet" href="style.css">
+  <!-- Favicon e ícones (caminhos relativos: funcionam no GitHub Pages e no domínio próprio) -->
+  <link rel="icon" href="img/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="img/favicon-16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="img/apple-touch-icon.png">
+  <link rel="stylesheet" href="style.css?v=2">
   <script src="config.js"></script>
   <script>
     /* Decide a tela ANTES de desenhar a página: sem login e com Supabase configurado -> Lobby. */
@@ -27,7 +32,7 @@
   <!-- LOBBY: tela inicial para quem não está logado (conteúdo ilustrativo, sem dados reais) -->
   <div id="lobby" class="lobby">
     <main class="lobby-conteudo">
-      <div class="lobby-marca"><span class="logo" aria-hidden="true">M</span><strong>MOVIX</strong></div>
+      <div class="lobby-marca"><img src="img/logo-movix-finance-540.png" width="540" height="317" alt="MOVIX Finance" fetchpriority="high"></div>
       <h1>Seu corre. Seu dinheiro. <span class="destaque">Seu controle.</span></h1>
       <p class="lobby-sub">Organize seus ganhos, acompanhe seus gastos e tenha o controle da sua vida financeira em um só lugar.</p>
 
@@ -52,14 +57,13 @@
 
   <header class="topo">
     <div class="marca">
-      <span class="logo" aria-hidden="true">M</span>
-      <h1>Movix</h1>
+      <h1><img src="img/logo-movix-finance-540.png" width="540" height="317" alt="MOVIX Finance" decoding="async"></h1>
     </div>
     <p>Sua jornada. Seu dinheiro. Seu controle.</p>
   </header>
 
   <nav class="menu" aria-label="Seções">
-    <div class="brand"><span class="logo" aria-hidden="true">M</span><strong>Movix</strong></div>
+    <div class="brand"><img src="img/logo-movix-finance-540.png" width="540" height="317" alt="MOVIX Finance" decoding="async"></div>
     <a href="#sec-resumo"><span class="ic">🏠</span><span>Resumo</span></a>
     <a href="#sec-graficos"><span class="ic">📊</span><span>Gráficos</span></a>
     <a href="#sec-combustivel"><span class="ic">⛽</span><span>Combustível</span></a>
@@ -352,6 +356,7 @@
     <!-- 6. BACKUP: exportar e importar dados em arquivo -->
     <!-- CONTA (Fase 3.2) -->
     <section class="painel" id="sec-conta">
+      <div class="auth-logo"><img src="img/logo-movix-finance-540.png" width="540" height="317" alt="MOVIX Finance" decoding="async"></div>
       <button type="button" id="authVoltar" class="btn-link so-lobby">← Voltar</button>
       <h2>Minha conta 👤</h2>
       <p id="contaAviso" class="alerta" hidden></p>
