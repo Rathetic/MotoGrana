@@ -46,7 +46,8 @@ const podeSincronizar = () => Boolean(estadoSync && estadoSync.ativo && usuarioA
 
 /* ---------- 2. Tabelas: como cada registro local vira linha do banco ---------- */
 // paraLinha: local -> banco (só colunas gravávelis; colunas calculadas ficam de fora)
-// paraLocal: banco -> local.  Ordem importa por causa das chaves estrangeiras.
+// paraLocal: banco -> local.  Ordem importa por causa das chaves estrangeiras
+// (turnos vem ANTES de movimentacoes: o ganho do turno aponta para o turno por turno_id).
 const TABELAS = [
   { nome: "veiculos", lista: () => extras.veiculos, gravar: (l) => { extras.veiculos = l; salvarExtras("veiculos"); },
     validar: (i) => itemExtraValido("veiculos", i),
@@ -60,15 +61,16 @@ const TABELAS = [
     validar: (i) => itemExtraValido("manutencoes", i),
     paraLinha: (m) => ({ id: m.id, veiculo_id: m.veiculoId, tipo: String(m.tipo).slice(0, 40), descricao: String(m.descricao).trim().slice(0, 60) || String(m.tipo).slice(0, 40), valor: m.valor, km: m.km, data: m.data, prox_km: numOuNulo(m.proxKm), prox_data: m.proxData || null }),
     paraLocal: (r) => { const m = { id: r.id, tipo: r.tipo, descricao: r.descricao, valor: Number(r.valor), km: Number(r.km), data: r.data, veiculoId: r.veiculo_id }; if (r.prox_km != null) m.proxKm = Number(r.prox_km); if (r.prox_data) m.proxData = r.prox_data; return m; } },
-  { nome: "movimentacoes", lista: () => movimentacoes, gravar: (l) => { movimentacoes = l; salvarDados(); },
-    validar: (i) => registroValido(i),
-    paraLinha: (m) => ({ id: m.id, descricao: String(m.descricao).trim().slice(0, 60) || "Sem descrição", tipo: m.tipo, categoria: String(m.categoria).slice(0, 40), valor: m.valor, data: m.data,
-      abastecimento_id: m.origem && m.origem.tipo === "combustivel" ? m.origem.id : null, manutencao_id: m.origem && m.origem.tipo === "manutencao" ? m.origem.id : null }),
-    paraLocal: (r) => { const m = { id: r.id, descricao: r.descricao, tipo: r.tipo, categoria: r.categoria, valor: Number(r.valor), data: r.data }; if (r.abastecimento_id) m.origem = { tipo: "combustivel", id: r.abastecimento_id }; else if (r.manutencao_id) m.origem = { tipo: "manutencao", id: r.manutencao_id }; return m; } },
   { nome: "turnos", lista: () => extras.turnos, gravar: (l) => { extras.turnos = l; salvarExtras("turnos"); },
     validar: (i) => itemExtraValido("turnos", i),
     paraLinha: (t) => ({ id: t.id, data: t.data, inicio: t.inicio, fim: t.fim, minutos: t.minutos, ganhos: t.ganhos, entregas: t.entregas, pausa_min: t.pausaMin || 0, registro: t.registro === "automático" ? "automatico" : "manual", km: numOuNulo(t.km), veiculo_id: null }),
     paraLocal: (r) => { const t = { id: r.id, data: r.data, inicio: String(r.inicio).slice(0, 5), fim: String(r.fim).slice(0, 5), minutos: Number(r.minutos), ganhos: Number(r.ganhos), entregas: Number(r.entregas), pausaMin: Number(r.pausa_min), registro: r.registro === "automatico" ? "automático" : "manual" }; if (r.km != null) t.km = Number(r.km); return t; } },
+  { nome: "movimentacoes", lista: () => movimentacoes, gravar: (l) => { movimentacoes = l; salvarDados(); },
+    validar: (i) => registroValido(i),
+    paraLinha: (m) => ({ id: m.id, descricao: String(m.descricao).trim().slice(0, 60) || "Sem descrição", tipo: m.tipo, categoria: String(m.categoria).slice(0, 40), valor: m.valor, data: m.data,
+      abastecimento_id: m.origem && m.origem.tipo === "combustivel" ? m.origem.id : null, manutencao_id: m.origem && m.origem.tipo === "manutencao" ? m.origem.id : null,
+      turno_id: m.origem && m.origem.tipo === "turno" ? m.origem.id : null }),
+    paraLocal: (r) => { const m = { id: r.id, descricao: r.descricao, tipo: r.tipo, categoria: r.categoria, valor: Number(r.valor), data: r.data }; if (r.abastecimento_id) m.origem = { tipo: "combustivel", id: r.abastecimento_id }; else if (r.manutencao_id) m.origem = { tipo: "manutencao", id: r.manutencao_id }; else if (r.turno_id) m.origem = { tipo: "turno", id: r.turno_id }; return m; } },
   { nome: "objetivos", lista: () => extras.objetivos, gravar: (l) => { extras.objetivos = l; salvarExtras("objetivos"); },
     validar: (i) => itemExtraValido("objetivos", i),
     paraLinha: (o) => ({ id: o.id, nome: String(o.nome).slice(0, 40), meta: o.meta, guardado: o.guardado }),
@@ -130,14 +132,32 @@ async function enviarTabela(t) {
 // Metas ficam na tabela configuracoes (1 linha por usuário)
 const linhaConfig = () => ({ meta_semanal: metaSemanal > 0 ? metaSemanal : null, meta_mensal: metaMensal > 0 ? metaMensal : null });
 
+// Remuneração por turno (ganho fixo + valor por entrega) também fica em configuracoes.
+// Precisa das colunas ganho_fixo_turno e valor_por_entrega. Se elas ainda não existem no banco,
+// o app cai para o comportamento anterior (só as metas), sem travar a sincronização,
+// e tenta de novo na próxima vez que o app for aberto.
+let colunasRemuneracao = true;
+const linhaRemuneracao = () => ({ ganho_fixo_turno: remuneracao.fixo > 0 ? remuneracao.fixo : null, valor_por_entrega: remuneracao.porEntrega > 0 ? remuneracao.porEntrega : null });
+const linhaConfigCompleta = () => ({ ...linhaConfig(), ...(colunasRemuneracao ? linhaRemuneracao() : {}) });
+const erroColunaRemuneracao = (e) => Boolean(e) && e.status === 400 && /ganho_fixo_turno|valor_por_entrega|column|coluna/i.test(e.message || "");
+
 async function enviarConfig() {
   const snap = (estadoSync.snapshot.configuracoes = estadoSync.snapshot.configuracoes || {});
-  const l = linhaConfig(), h = hashTexto(JSON.stringify(l));
-  const sujo = snap.hash === undefined ? (l.meta_semanal !== null || l.meta_mensal !== null) : snap.hash !== h;
+  const l = linhaConfigCompleta(), h = hashTexto(JSON.stringify(l));
+  const sujo = snap.hash === undefined ? Object.values(l).some((v) => v !== null) : snap.hash !== h;
   snap.sujo = sujo;
   if (!sujo) return;
-  await restFetch("configuracoes?on_conflict=user_id", { metodo: "POST", prefer: "resolution=merge-duplicates,return=minimal", corpo: { user_id: estadoSync.usuario, ...l } });
-  snap.hash = h;
+  const enviar = (campos) => restFetch("configuracoes?on_conflict=user_id", { metodo: "POST", prefer: "resolution=merge-duplicates,return=minimal", corpo: { user_id: estadoSync.usuario, ...campos } });
+  try {
+    await enviar(l);
+    snap.hash = h;
+  } catch (e) {
+    if (!colunasRemuneracao || !erroColunaRemuneracao(e)) throw e;
+    colunasRemuneracao = false;               // colunas ainda não existem: segue só com as metas
+    const base = linhaConfig();
+    await enviar(base);
+    snap.hash = hashTexto(JSON.stringify(base));
+  }
 }
 
 /* ---------- 5. Receber (nuvem -> local) ---------- */
@@ -178,16 +198,32 @@ async function receberTabela(t) {
 async function receberConfig() {
   const snap = estadoSync.snapshot.configuracoes;
   if (snap.sujo) { snap.sujo = false; return false; } // acabou de enviar: o local é a verdade
-  const linhas = await restFetch("configuracoes?select=meta_semanal,meta_mensal&user_id=eq." + estadoSync.usuario);
+  const buscar = () => restFetch("configuracoes?select=meta_semanal,meta_mensal" + (colunasRemuneracao ? ",ganho_fixo_turno,valor_por_entrega" : "") + "&user_id=eq." + estadoSync.usuario);
+  let linhas;
+  try { linhas = await buscar(); }
+  catch (e) {
+    if (!colunasRemuneracao || !erroColunaRemuneracao(e)) throw e;
+    colunasRemuneracao = false;               // colunas ainda não existem: busca só as metas
+    linhas = await buscar();
+  }
   if (!linhas.length) return false;
   const sem = Number(linhas[0].meta_semanal) > 0 ? Number(linhas[0].meta_semanal) : 0, men = Number(linhas[0].meta_mensal) > 0 ? Number(linhas[0].meta_mensal) : 0;
+  const positivo = (v) => (Number(v) > 0 ? arred(Number(v)) : 0);
+  const fixo = colunasRemuneracao ? positivo(linhas[0].ganho_fixo_turno) : remuneracao.fixo;
+  const porEntrega = colunasRemuneracao ? positivo(linhas[0].valor_por_entrega) : remuneracao.porEntrega;
   let mudou = false;
   aplicandoRemoto = true;
   try {
     if (sem !== metaSemanal) { metaSemanal = sem; sem ? localStorage.setItem(CHAVE_META, String(sem)) : localStorage.removeItem(CHAVE_META); $("campoMeta").value = sem || ""; mudou = true; }
     if (men !== metaMensal) { metaMensal = men; men ? localStorage.setItem(CHAVE_META_MENSAL, String(men)) : localStorage.removeItem(CHAVE_META_MENSAL); $("campoMetaMensal").value = men || ""; mudou = true; }
+    if (fixo !== remuneracao.fixo || porEntrega !== remuneracao.porEntrega) {   // vale só para turnos futuros; turnos antigos não são tocados
+      remuneracao = { fixo, porEntrega };
+      remuneracaoAtiva() ? localStorage.setItem(CHAVE_REMUNERACAO, JSON.stringify(remuneracao)) : localStorage.removeItem(CHAVE_REMUNERACAO);
+      $("ganhoFixoTurno").value = fixo || ""; $("valorEntregaTurno").value = porEntrega || "";
+      mudou = true;
+    }
   } finally { aplicandoRemoto = false; }
-  snap.hash = hashTexto(JSON.stringify(linhaConfig()));
+  snap.hash = hashTexto(JSON.stringify(linhaConfigCompleta()));
   return mudou;
 }
 
@@ -234,7 +270,7 @@ async function sincronizar() {
     if (e.rede) resultadoSync.offline = true; else { resultadoSync.erro = traduzirErroSync(e); marcarMigracaoFalha(e); }
   } finally {
     sincronizando = false;
-    if (resultadoSync.erro && resultadoSync.erro !== ultimoErroAvisado) toast("Sincronização com problema. Toque em \"Testar conexão com o banco\" na seção Conta.", true);
+    if (resultadoSync.erro && resultadoSync.erro !== ultimoErroAvisado) toast("Sincronização com problema. Veja os detalhes na seção Conta.", true);
     ultimoErroAvisado = resultadoSync.erro;
     salvarEstadoSync();
     renderizarSync();
@@ -321,11 +357,10 @@ function renderizarSync() {
   $("btnSyncAtivar").hidden = !logado || ativo;
   $("botoesSync").hidden = !ativo;
   const temPreventivo = Boolean(lerJson(BACKUP_PREVENTIVO_CHAVE));
-  $("btnDiagnostico").hidden = !logado;
   $("btnDuplicatas").hidden = !ativo;
   $("btnRestaurarPreventivo").hidden = !temPreventivo;
   $("botoesMigracao").hidden = !logado || !(ativo || temPreventivo);
-  if (!logado) { $("relatorioMigracao").hidden = $("tituloRelatorio").hidden = $("blocoDuplicatas").hidden = $("resultadoDiagnostico").hidden = $("btnCopiarDiagnostico").hidden = true; return; }
+  if (!logado) { $("relatorioMigracao").hidden = $("tituloRelatorio").hidden = $("blocoDuplicatas").hidden = true; return; }
   renderizarRelatorio();
 
   let estado = "Desativada neste aparelho";
@@ -500,80 +535,6 @@ function renderizarRelatorio() {
   if (r.jaMigrado) box.append(el("p", "dica", "Estes mesmos dados já tinham sido migrados antes para esta conta."));
 }
 
-/* ---------- 11. Diagnóstico da conexão ---------- */
-// Testa cada passo (configuração, sessão, tabelas, gravação) e mostra o que falhou.
-// O relatório não contém senhas, tokens nem chaves.
-const TABELAS_DIAG = ["perfis", "configuracoes", "veiculos", "abastecimentos", "manutencoes", "movimentacoes", "turnos", "turno_em_andamento", "objetivos", "migracoes"];
-let textoDiagnostico = "";
-
-function dicaDoErro(e) {
-  if (e.rede) return "Sem conexão com o servidor (internet ou URL do projeto incorreta).";
-  if (e.status === 401) return "Não autorizado: sessão expirada ou chave do config.js incorreta. Saia da conta e entre de novo.";
-  if (e.status === 403) return "Permissão negada (RLS/GRANT). Rode de novo as seções 14 e 15 do SQL.";
-  if (e.status === 404) return "A tabela não existe (ou o Supabase ainda não a reconheceu). Rode o SQL da etapa 3.1.";
-  return "HTTP " + (e.status || "?") + ": " + e.message;
-}
-
-function mostrarDiagnostico(linhas) {
-  const box = $("resultadoDiagnostico");
-  box.hidden = false;
-  box.innerHTML = "";
-  textoDiagnostico = linhas.map((l) => (l.ok ? "✅ " : "❌ ") + l.titulo + (l.detalhe ? ": " + l.detalhe : "")).join("\n");
-  linhas.forEach((l) => box.append(linhaInfo((l.ok ? "✅ " : "❌ ") + l.titulo, l.detalhe, l.ok ? "g" : "d")));
-  $("btnCopiarDiagnostico").hidden = false;
-}
-
-async function diagnosticar() {
-  const linhas = [], add = (ok, titulo, detalhe) => linhas.push({ ok, titulo, detalhe: detalhe || "" });
-  const botao = $("btnDiagnostico");
-  botao.disabled = true;
-  botao.textContent = "Testando...";
-  try {
-    const cfg = lerConfiguracao();
-    add(cfg.ok, "Configuração (config.js)", cfg.ok ? cfg.url : cfg.motivo === "vazia" ? "config.js está vazio" : cfg.motivo);
-    if (!cfg.ok) return mostrarDiagnostico(linhas);
-    add(Boolean(sessao), "Sessão", sessao ? sessao.user.email : "você não está logado");
-    if (!sessao) return mostrarDiagnostico(linhas);
-    try { await authFetch("/user", { metodo: "GET", token: await obterTokenValido() }); add(true, "Servidor de autenticação", "token aceito"); }
-    catch (e) { add(false, "Servidor de autenticação", dicaDoErro(e)); if (e.rede) return mostrarDiagnostico(linhas); }
-
-    for (const t of TABELAS_DIAG) {
-      try { await restFetch(t + "?select=*&limit=1"); add(true, "Tabela " + t, "acessível"); }
-      catch (e) { add(false, "Tabela " + t, dicaDoErro(e)); }
-    }
-    try {
-      const p = await restFetch("perfis?select=plano");
-      add(p.length === 1, "Perfil do usuário", p.length === 1 ? "plano " + p[0].plano : "não encontrado: rode o trecho 'Usuários que já existam' (seção 13) do SQL");
-    } catch (e) { add(false, "Perfil do usuário", dicaDoErro(e)); }
-    try {   // grava e apaga um registro de teste para provar que a escrita funciona
-      await restFetch("objetivos?on_conflict=user_id,id", { metodo: "POST", prefer: "resolution=merge-duplicates,return=minimal", corpo: [{ id: "diagnostico-teste", nome: "teste", meta: 1, guardado: 0, deleted_at: null }] });
-      await restFetch("objetivos?id=eq.diagnostico-teste", { metodo: "DELETE", prefer: "return=minimal" });
-      add(true, "Teste de gravação", "gravou e apagou um registro de teste");
-    } catch (e) { add(false, "Teste de gravação", dicaDoErro(e)); }
-
-    for (const t of TABELAS) {
-      try {
-        const nuvem = (await restFetch(t.nome + "?select=id&deleted_at=is.null&limit=10000")).length, aparelho = t.lista().length;
-        add(nuvem === aparelho, "Registros em " + t.nome, "nuvem " + nuvem + " • aparelho " + aparelho);
-      } catch (e) { add(false, "Registros em " + t.nome, dicaDoErro(e)); }
-    }
-    const ativo = podeSincronizar();
-    add(ativo, "Sincronização neste aparelho", ativo ? "ativa • pendências: " + contarPendencias()
-      : !estadoSync ? "NÃO ativada: toque em \"Ativar sincronização\""
-      : estadoSync.usuario !== usuarioAtual() ? "ligada a outra conta: ative de novo" : "pausada");
-    if (resultadoSync.erro) add(false, "Último erro da sincronização", resultadoSync.erro);
-    mostrarDiagnostico(linhas);
-  } finally {
-    botao.disabled = false;
-    botao.textContent = "🩺 Testar conexão com o banco";
-  }
-}
-
-async function copiarDiagnostico() {
-  try { await navigator.clipboard.writeText(textoDiagnostico); toast("Relatório copiado!"); }
-  catch (e) { toast("Não foi possível copiar. Tire um print da tela.", true); }
-}
-
 /* ---------- 9. Inicialização ---------- */
 function iniciarSync() {
   carregarEstadoSync();
@@ -586,8 +547,6 @@ function iniciarSync() {
   $("btnSyncAgora").addEventListener("click", sincronizar);
   $("btnSyncPausar").addEventListener("click", pausarSincronizacao);
   $("btnDuplicatas").addEventListener("click", mostrarDuplicatas);
-  $("btnDiagnostico").addEventListener("click", diagnosticar);
-  $("btnCopiarDiagnostico").addEventListener("click", copiarDiagnostico);
   $("btnRestaurarPreventivo").addEventListener("click", restaurarBackupPreventivo);
   // Backup JSON importado: registra a importação na conta (melhor esforço) e avisa se já foi feita
   document.addEventListener("movix:backup-importado", async (ev) => {

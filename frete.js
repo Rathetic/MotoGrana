@@ -3,6 +3,7 @@
    O usuário informa origem, destino e quanto cobra por km. O app descobre a
    distância rodoviária pelo OpenRouteService (plano gratuito) e calcula:
      valor = (distância total × preço por km) + pedágio + taxa adicional
+     (o pedágio é informado por trecho: em ida e volta ele é contado 2 vezes)
    Se não houver internet, chave ou resposta da API, dá para digitar a distância
    à mão (modo manual) e o cálculo continua igual.
 
@@ -51,6 +52,7 @@
     if (!Number.isFinite(ped)) return { ok: false, motivo: "pedagio" };
     if (!Number.isFinite(tx)) return { ok: false, motivo: "taxa" };
     const total = idaVolta ? ida * 2 : ida;
+    const pedagioTotal = idaVolta ? ped * 2 : ped;   // o pedágio informado vale por trecho
     return {
       ok: true,
       idaVolta: Boolean(idaVolta),
@@ -58,8 +60,9 @@
       distanciaTotal: total,
       precoKm: preco,
       pedagio: ped,
+      pedagioTotal,
       taxa: tx,
-      valor: arredondarCentavos(total * preco + ped + tx)
+      valor: arredondarCentavos(total * preco + pedagioTotal + tx)
     };
   }
 
@@ -75,7 +78,9 @@
       ? "🛣️ Distância: " + km1(r.distanciaIda) + " (ida) • " + km1(r.distanciaTotal) + " (ida e volta)"
       : "🛣️ Distância: " + km1(r.distanciaIda) + " (somente ida)");
     linhas.push("💵 Valor por km: " + moeda(r.precoKm));
-    if (r.pedagio > 0) linhas.push("🧾 Pedágio: " + moeda(r.pedagio));
+    if (r.pedagio > 0) linhas.push(r.idaVolta
+      ? "🧾 Pedágio: " + moeda(r.pedagio) + " por trecho × 2 = " + moeda(r.pedagioTotal)
+      : "🧾 Pedágio: " + moeda(r.pedagio));
     if (r.taxa > 0) linhas.push("➕ Taxa adicional: " + moeda(r.taxa));
     linhas.push("", "*Total estimado: " + moeda(r.valor) + "*");
     return linhas.join("\n");
@@ -267,7 +272,8 @@
       if (r.idaVolta) area.append(linhaInfo("Distância total (ida e volta)", km1(r.distanciaTotal)));
       area.append(
         linhaInfo("Valor por km", moeda(r.precoKm)),
-        linhaInfo("Pedágio", moeda(r.pedagio)),
+        linhaInfo("Pedágio por trecho", moeda(r.pedagio)),
+        ...(r.idaVolta ? [linhaInfo("Pedágio total (ida e volta × 2)", moeda(r.pedagioTotal))] : []),
         linhaInfo("Taxa adicional", moeda(r.taxa)),
         linhaInfo("Total estimado", moeda(r.valor), "l g")
       );

@@ -541,6 +541,81 @@ function lancarDespesa(descricao, categoria, valor, data, origem) {
   salvarDados();
 }
 
+/* --- Remuneração do turno: ganho fixo + entregas x valor por entrega ---
+   Fica só neste aparelho (chave própria; não é enviada ao Supabase). Não é gravada nos turnos:
+   cada turno guarda apenas o total já calculado em "ganhos", então mudar a configuração
+   nunca altera turnos antigos. Valores 0 e 0 = desligado (lançamento manual, como antes). */
+const CHAVE_REMUNERACAO = "motograna:remuneracao";
+let remuneracao = { fixo: 0, porEntrega: 0 };
+const remuneracaoAtiva = () => remuneracao.fixo > 0 || remuneracao.porEntrega > 0;
+const calcularRemuneracao = (entregas, cfg = remuneracao) => arred(cfg.fixo + (Number.isInteger(entregas) && entregas > 0 ? entregas : 0) * cfg.porEntrega);
+
+function carregarRemuneracao() {
+  try {
+    const r = JSON.parse(localStorage.getItem(CHAVE_REMUNERACAO));
+    const ok = (v) => (typeof v === "number" && isFinite(v) && v >= 0 ? arred(v) : 0);
+    remuneracao = r ? { fixo: ok(r.fixo), porEntrega: ok(r.porEntrega) } : { fixo: 0, porEntrega: 0 };
+  } catch (erro) { remuneracao = { fixo: 0, porEntrega: 0 }; }
+}
+
+function aoSalvarRemuneracao() {
+  const ler = (id) => ($(id).value.trim() === "" ? 0 : parseFloat($(id).value));
+  const fixo = ler("ganhoFixoTurno"), porEntrega = ler("valorEntregaTurno");
+  if (!isFinite(fixo) || fixo < 0 || !isFinite(porEntrega) || porEntrega < 0) return aviso("mensagemRemuneracao", "Informe valores válidos (zero ou maiores).", true);
+  remuneracao = { fixo: arred(fixo), porEntrega: arred(porEntrega) };
+  try {
+    if (remuneracaoAtiva()) localStorage.setItem(CHAVE_REMUNERACAO, JSON.stringify(remuneracao));
+    else localStorage.removeItem(CHAVE_REMUNERACAO);
+  } catch (erro) { return aviso("mensagemRemuneracao", "Não foi possível salvar neste navegador.", true); }
+  aviso("mensagemRemuneracao", remuneracaoAtiva() ? "Remuneração salva! Vale para os próximos turnos." : "Remuneração removida. Os ganhos voltam a ser digitados à mão.", false);
+}
+
+// Preenche o campo de ganhos com o total calculado (só se a configuração estiver ativa; o usuário ainda pode editar)
+function aplicarRemuneracao(idGanhos, idEntregas) {
+  if (!remuneracaoAtiva()) return;
+  const texto = $(idEntregas).value.trim(), entregas = texto === "" ? 0 : Number(texto);
+  if (!Number.isInteger(entregas) || entregas < 0) return;
+  $(idGanhos).value = calcularRemuneracao(entregas);
+}
+
+/* --- Ganho do turno como movimentação (fechamento inteligente de turno) --- */
+// REGRA DE DATA: o ganho pertence ao DIA EM QUE O TURNO COMEÇOU (turno.data),
+// mesmo quando o turno termina no dia seguinte.
+const CATEGORIA_GANHO_TURNO = "Entrega particular";
+const DESCRICAO_GANHO_TURNO = "Ganhos do turno";
+const movimentacaoDoTurno = (turnoId) => movimentacoes.find((m) => m.origem && m.origem.tipo === "turno" && m.origem.id === turnoId);
+
+// Ganhos lançados à mão (sem origem) numa data: servem para avisar de possível duplicidade
+const ganhosManuaisDaData = (data) => arred(movimentacoes
+  .filter((m) => m.tipo === "ganho" && !m.origem && m.data === data)
+  .reduce((soma, m) => soma + m.valor, 0));
+
+// ÚNICA rotina que cria a movimentação de ganho de um turno.
+// Idempotente: se o turno já tem ganho lançado, não cria outro.
+function sincronizarMovimentacaoDoTurno(turno, categoria) {
+  if (movimentacaoDoTurno(turno.id)) return "existente";
+  if (!(turno.ganhos > 0)) return "sem_valor";
+  movimentacoes.push({
+    id: gerarId(),
+    descricao: DESCRICAO_GANHO_TURNO,
+    tipo: "ganho",
+    categoria: CATEGORIAS.ganho.includes(categoria) ? categoria : CATEGORIA_GANHO_TURNO,
+    valor: arred(turno.ganhos),
+    data: turno.data,
+    origem: { tipo: "turno", id: turno.id }   // liga o ganho ao turno que o gerou
+  });
+  salvarDados();
+  return "criado";
+}
+
+// Antes de lançar, avisa se já há ganhos manuais na mesma data (evita contar o mesmo dinheiro duas vezes)
+function confirmarPossivelDuplicidade(turno) {
+  const ja = ganhosManuaisDaData(turno.data);
+  if (ja <= 0) return true;
+  return confirm("Você já registrou " + formatarMoeda(ja) + " de ganhos em " + formatarData(turno.data)
+    + ". Lançar mais " + formatarMoeda(turno.ganhos) + " pode contar o mesmo dinheiro duas vezes. Lançar mesmo assim?");
+}
+
 // Linha "rótulo ........ valor" dentro de um bloco .periodo
 function linhaInfo(rotulo, texto, classe) {
   const p = el("p", classe);
@@ -949,13 +1024,30 @@ function renderizarTurnos() {
     linhaInfo("Média por hora", formatarMoeda(arred(t.g / (t.min / 60))), "g"),
     linhaInfo("Média por entrega", t.e > 0 ? formatarMoeda(arred(t.g / t.e)) : "—", "l g")
   );
-  maisRecentes(extras.turnos).forEach((x) => ul.append(criarItem(
-    "ganho",
-    formatarData(x.data) + " • " + x.inicio + " às " + x.fim + " (" + horasTexto(x.minutos) + ")" + (x.registro === "manual" ? " • horário manual" : ""),
-    formatarMoeda(arred(x.ganhos / (x.minutos / 60))) + "/h • " + x.entregas + " entregas" + (x.entregas > 0 ? " • " + formatarMoeda(arred(x.ganhos / x.entregas)) + "/entrega" : ""),
-    formatarMoeda(x.ganhos),
-    () => removerExtra("turnos", x.id)
-  )));
+  maisRecentes(extras.turnos).forEach((x) => {
+    const lancado = Boolean(movimentacaoDoTurno(x.id));
+    const li = criarItem(
+      "ganho",
+      formatarData(x.data) + " • " + x.inicio + " às " + x.fim + " (" + horasTexto(x.minutos) + ")" + (x.registro === "manual" ? " • horário manual" : ""),
+      formatarMoeda(arred(x.ganhos / (x.minutos / 60))) + "/h • " + x.entregas + " entregas" + (x.entregas > 0 ? " • " + formatarMoeda(arred(x.ganhos / x.entregas)) + "/entrega" : "") + (lancado ? " • ganho lançado" : ""),
+      formatarMoeda(x.ganhos),
+      () => removerExtra("turnos", x.id)
+    );
+    if (!lancado && x.ganhos > 0) {   // permite lançar depois (turno finalizado sem lançar)
+      const b = el("button", "btn-lancar", "Lançar ganho");
+      b.type = "button";
+      b.addEventListener("click", () => lancarGanhoDoHistorico(x));
+      li.insertBefore(b, li.querySelector(".btn-excluir"));
+    }
+    ul.append(li);
+  });
+}
+
+function lancarGanhoDoHistorico(turno) {
+  if (!confirmarPossivelDuplicidade(turno)) return;
+  const r = sincronizarMovimentacaoDoTurno(turno, CATEGORIA_GANHO_TURNO);
+  if (r === "criado") toast(formatarMoeda(turno.ganhos) + " lançados em " + formatarData(turno.data) + ".");
+  atualizarTela();
 }
 
 /* --- 5. Cofrinho de objetivos --- */
@@ -1103,6 +1195,8 @@ let veiculoAtivo = "";
 let turnoAtual = null;   // { inicio: ms, pausas: [{ de: ms, ate: ms | null }] }
 let metaMensal = 0;
 let pausaPendente = 0;   // minutos de pausa do turno encerrado, usados ao registrar o turno
+const CHAVE_TURNO_ENCERRADO = "motograna:turnoEncerrado";
+let turnoEncerrado = null; // { id, inicio: ms, fim: ms, pausaMin } - encerrado, aguardando o resumo (não se perde se a página fechar)
 let prefillTurno = null; // horários preenchidos pelo cronômetro (para saber se foram corrigidos à mão)
 
 const moeda = (v) => formatarMoeda(arred(v));
@@ -1215,9 +1309,10 @@ const formatarCrono = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); re
 
 function renderizarTurnoAtual() {
   const agora = Date.now(), principal = $("btnTurnoPrincipal"), pausa = $("btnTurnoPausa");
+  $("btnResumoTurno").hidden = Boolean(turnoAtual) || !turnoEncerrado;
   if (!turnoAtual) {
     $("cronometro").textContent = "00:00:00";
-    $("estadoTurno").textContent = "Nenhum turno em andamento.";
+    $("estadoTurno").textContent = turnoEncerrado ? "Turno encerrado aguardando registro." : "Nenhum turno em andamento.";
     principal.textContent = "▶ Iniciar turno";
     pausa.hidden = true;
     return;
@@ -1229,25 +1324,123 @@ function renderizarTurnoAtual() {
   pausa.textContent = emPausa() ? "▶ Retomar" : "⏸ Pausar";
 }
 
+function salvarTurnoEncerrado() {
+  try {
+    if (turnoEncerrado) localStorage.setItem(CHAVE_TURNO_ENCERRADO, JSON.stringify(turnoEncerrado));
+    else localStorage.removeItem(CHAVE_TURNO_ENCERRADO);
+  } catch (erro) { /* ignora */ }
+}
+function carregarTurnoEncerrado() {
+  try {
+    const t = JSON.parse(localStorage.getItem(CHAVE_TURNO_ENCERRADO));
+    turnoEncerrado = t && typeof t.id === "string" && isFinite(t.inicio) && isFinite(t.fim) && t.fim >= t.inicio
+      ? { id: t.id, inicio: t.inicio, fim: t.fim, pausaMin: Math.max(0, Number(t.pausaMin) || 0) } : null;
+  } catch (erro) { turnoEncerrado = null; }
+}
+
+// Caminho manual (reserva): leva os dados do turno encerrado para o formulário de turno
+function preencherFormularioDoTurno(t) {
+  pausaPendente = t.pausaMin;
+  $("dataTurno").value = dataParaTexto(new Date(t.inicio));
+  $("inicioTurno").value = horaLocal(t.inicio);
+  $("fimTurno").value = horaLocal(t.fim);
+  prefillTurno = { data: $("dataTurno").value, ini: $("inicioTurno").value, fim: $("fimTurno").value };
+  $("formTurno").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
 function aoClicarTurnoPrincipal() {
   if (!turnoAtual) {
+    if (turnoEncerrado) { toast("Registre o turno encerrado antes de iniciar outro."); abrirResumoTurno(); return; }
     turnoAtual = { inicio: Date.now(), pausas: [] };
     salvarTurnoAtual();
     toast("Turno iniciado!");
   } else {
     if (!confirm("Encerrar o turno agora?")) return; // nunca encerra sem confirmação
-    const agora = Date.now();
+    const agora = Date.now();                        // data e hora do encerramento
     turnoAtual.pausas.forEach((p) => { if (p.ate === null) p.ate = agora; });
-    pausaPendente = Math.round(msPausado(agora) / 60000);
-    $("dataTurno").value = dataParaTexto(new Date(turnoAtual.inicio));
-    $("inicioTurno").value = horaLocal(turnoAtual.inicio);
-    $("fimTurno").value = horaLocal(agora);
-    prefillTurno = { data: $("dataTurno").value, ini: $("inicioTurno").value, fim: $("fimTurno").value };
+    turnoEncerrado = { id: gerarId(), inicio: turnoAtual.inicio, fim: agora, pausaMin: Math.round(msPausado(agora) / 60000) };
+    salvarTurnoEncerrado();                          // guardado antes de qualquer coisa: nada se perde
     turnoAtual = null;
     salvarTurnoAtual();
-    toast("Turno encerrado. Informe ganhos e entregas e registre.");
-    $("formTurno").scrollIntoView({ behavior: "smooth", block: "center" });
+    if (!abrirResumoTurno()) {                       // navegador sem <dialog>: segue o formulário, como antes
+      preencherFormularioDoTurno(turnoEncerrado);
+      turnoEncerrado = null;
+      salvarTurnoEncerrado();
+      toast("Turno encerrado. Informe ganhos e entregas e registre.");
+    }
   }
+  atualizarExtras();
+}
+
+/* --- Resumo de encerramento do turno --- */
+function calcularEncerramento(t) {
+  const efetivo = Math.round((t.fim - t.inicio) / 60000) - t.pausaMin;   // duração sem as pausas
+  return {
+    efetivo: Math.min(1440, Math.max(1, efetivo)),
+    passou24h: efetivo > 1440,
+    dataInicio: dataParaTexto(new Date(t.inicio)),   // a data do turno é SEMPRE a do início
+    dataFim: dataParaTexto(new Date(t.fim))
+  };
+}
+
+function abrirResumoTurno() {
+  const dlg = $("dlgTurno");
+  if (!turnoEncerrado || typeof dlg.showModal !== "function") return false;
+  const t = turnoEncerrado, c = calcularEncerramento(t), info = $("resumoEncerramento");
+  info.innerHTML = "";
+  info.append(
+    linhaInfo("Início", formatarData(c.dataInicio) + " às " + horaLocal(t.inicio)),
+    linhaInfo("Término", formatarData(c.dataFim) + " às " + horaLocal(t.fim)),
+    linhaInfo("Duração efetiva", horasTexto(c.efetivo) + (t.pausaMin > 0 ? " (pausas: " + horasTexto(t.pausaMin) + ")" : ""))
+  );
+  const notas = [];
+  if (c.dataFim !== c.dataInicio) notas.push("O turno terminou em outro dia. Os ganhos serão contabilizados em " + formatarData(c.dataInicio) + ", a data de início.");
+  if (c.passou24h) notas.push("O turno passou de 24 h: a duração será registrada como 24 h.");
+  $("notaEncerramento").textContent = notas.join(" ");
+  ["ganhosResumo", "entregasResumo", "kmResumo"].forEach((id) => { $(id).value = ""; });
+  aplicarRemuneracao("ganhosResumo", "entregasResumo");   // com remuneração ativa, já mostra o ganho fixo
+  $("categoriaResumo").value = CATEGORIA_GANHO_TURNO;
+  aviso("msgResumo", "", false);
+  if (!dlg.open) dlg.showModal();
+  return true;
+}
+
+function registrarTurnoEncerrado(lancar) {
+  if (!turnoEncerrado) return;
+  const lerNum = (id) => ($(id).value.trim() === "" ? 0 : num(id));   // vazio = 0
+  const ganhos = lerNum("ganhosResumo"), entregas = lerNum("entregasResumo");
+  const km = $("kmResumo").value.trim() === "" ? NaN : num("kmResumo");
+  if (!isFinite(ganhos) || ganhos < 0) return aviso("msgResumo", "Informe um valor de ganhos válido.", true);
+  if (!Number.isInteger(entregas) || entregas < 0) return aviso("msgResumo", "Informe a quantidade de entregas (número inteiro).", true);
+
+  const t = turnoEncerrado, c = calcularEncerramento(t);
+  const turno = { id: t.id, data: c.dataInicio, inicio: horaLocal(t.inicio), fim: horaLocal(t.fim), minutos: c.efetivo, ganhos: arred(ganhos), entregas, pausaMin: t.pausaMin, registro: "automático", ...(isFinite(km) && km >= 0 ? { km } : {}) };
+  const vaiLancar = lancar && turno.ganhos > 0;
+  if (vaiLancar && !confirmarPossivelDuplicidade(turno)) return;   // o usuário decide; nada foi gravado ainda
+
+  if (!extras.turnos.some((x) => x.id === turno.id)) { extras.turnos.push(turno); salvarExtras("turnos"); }   // mesmo id: nunca duplica o turno
+  const resultado = vaiLancar ? sincronizarMovimentacaoDoTurno(turno, $("categoriaResumo").value) : "";
+  turnoEncerrado = null;
+  salvarTurnoEncerrado();
+  $("dlgTurno").close();
+  toast(resultado === "criado" ? "Turno registrado e " + moeda(turno.ganhos) + " lançados em " + formatarData(turno.data) + "!" : "Turno registrado!");
+  atualizarTela();
+}
+
+function aoUsarGanhosNoResumo() {
+  if (!turnoEncerrado) return;
+  const g = ganhosDoDia(calcularEncerramento(turnoEncerrado).dataInicio);
+  $("ganhosResumo").value = g > 0 ? g : "";
+  aviso("msgResumo", g > 0 ? "Esse valor já está nas suas movimentações. Use \"Registrar sem lançar ganhos\" para não contar de novo." : "Não há ganhos registrados nesta data.", g <= 0);
+}
+
+function aoPreencherFormularioDoResumo() {
+  if (!turnoEncerrado) return;
+  $("dlgTurno").close();
+  preencherFormularioDoTurno(turnoEncerrado);
+  turnoEncerrado = null;
+  salvarTurnoEncerrado();
+  toast("Informe ganhos e entregas e registre.");
   atualizarExtras();
 }
 
@@ -1392,8 +1585,20 @@ function iniciarNovos() {
   $("btnExcluirVeiculo").addEventListener("click", aoExcluirVeiculo);
   $("btnTurnoPrincipal").addEventListener("click", aoClicarTurnoPrincipal);
   $("btnTurnoPausa").addEventListener("click", aoClicarPausa);
+  CATEGORIAS.ganho.forEach((nome) => { const o = el("option", "", nome); o.value = nome; $("categoriaResumo").append(o); });
+  $("btnResumoTurno").addEventListener("click", abrirResumoTurno);
+  $("btnResumoLancar").addEventListener("click", () => registrarTurnoEncerrado(true));
+  $("btnResumoSemLancar").addEventListener("click", () => registrarTurnoEncerrado(false));
+  $("btnResumoGanhosDia").addEventListener("click", aoUsarGanhosNoResumo);
+  $("btnResumoFormulario").addEventListener("click", aoPreencherFormularioDoResumo);
+  $("btnResumoDepois").addEventListener("click", () => { $("dlgTurno").close(); atualizarExtras(); });
   $("btnSalvarMetaMensal").addEventListener("click", aoSalvarMetaMensal);
   if (metaMensal > 0) $("campoMetaMensal").value = metaMensal;
+  $("btnSalvarRemuneracao").addEventListener("click", aoSalvarRemuneracao);
+  $("entregasResumo").addEventListener("input", () => aplicarRemuneracao("ganhosResumo", "entregasResumo"));
+  $("entregasTurno").addEventListener("input", () => aplicarRemuneracao("ganhosTurno", "entregasTurno"));
+  if (remuneracao.fixo > 0) $("ganhoFixoTurno").value = remuneracao.fixo;
+  if (remuneracao.porEntrega > 0) $("valorEntregaTurno").value = remuneracao.porEntrega;
   setInterval(renderizarTurnoAtual, 1000);
 }
 
@@ -1418,7 +1623,9 @@ function iniciarExtras() {
   carregarExtras();
   prepararVeiculos();
   carregarTurnoAtual();
+  carregarTurnoEncerrado();
   carregarMetaMensal();
+  carregarRemuneracao();
   const hoje = dataParaTexto(new Date());
   ["dataCombustivel", "dataManut", "dataTurno"].forEach((id) => { $(id).value = hoje; });
   TIPOS_MANUTENCAO.forEach((t) => { const o = el("option", "", t); o.value = t; $("tipoManut").append(o); });

@@ -278,7 +278,7 @@
         <p id="mensagemFrete" class="aviso" role="status"></p>
         <div class="linha-2">
           <div><label for="fretePrecoKm">Valor por km (R$)</label><input type="number" id="fretePrecoKm" min="0.01" step="0.01" inputmode="decimal"></div>
-          <div><label for="fretePedagio">Pedágio (R$, opcional)</label><input type="number" id="fretePedagio" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></div>
+          <div><label for="fretePedagio">Pedágio por trecho (R$)</label><input type="number" id="fretePedagio" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></div>
         </div>
         <label for="freteTaxa">Taxa adicional (R$, opcional)</label>
         <input type="number" id="freteTaxa" min="0" step="0.01" inputmode="decimal" placeholder="0,00">
@@ -353,10 +353,19 @@
         <div class="botoes-backup">
           <button type="button" id="btnTurnoPrincipal" class="btn-principal">▶ Iniciar turno</button>
           <button type="button" id="btnTurnoPausa" class="btn-secundario" hidden>⏸ Pausar</button>
+          <button type="button" id="btnResumoTurno" class="btn-secundario" hidden>📝 Registrar turno encerrado</button>
         </div>
         <p class="dica">Use com o veículo parado. Nunca mexa no app enquanto estiver dirigindo ou pilotando.</p>
       </div>
       <div id="resumoTurnos" class="periodo resultado"></div>
+      <h3 class="subtitulo">Remuneração por turno</h3>
+      <p class="dica">Opcional. Com valores aqui, o ganho do turno é calculado: fixo + (entregas × valor por entrega). Mudanças valem só para os próximos turnos. Deixe 0 e 0 para lançar os ganhos à mão.</p>
+      <div class="linha-2">
+        <div><label for="ganhoFixoTurno">Ganho fixo por turno (R$)</label><input type="number" id="ganhoFixoTurno" min="0" step="0.01" inputmode="decimal" placeholder="Ex.: 50,00"></div>
+        <div><label for="valorEntregaTurno">Valor por entrega (R$)</label><input type="number" id="valorEntregaTurno" min="0" step="0.01" inputmode="decimal" placeholder="Ex.: 7,00"></div>
+      </div>
+      <button type="button" id="btnSalvarRemuneracao" class="btn-secundario">Salvar remuneração</button>
+      <p id="mensagemRemuneracao" class="aviso" role="status"></p>
       <form id="formTurno" novalidate>
         <div class="linha">
           <div><label for="dataTurno">Data</label><input type="date" id="dataTurno"></div>
@@ -444,9 +453,6 @@
           <button type="button" id="btnRestaurarPreventivo" class="btn-secundario">♻️ Restaurar backup preventivo</button>
         </div>
         <div id="blocoDuplicatas" hidden></div>
-        <button type="button" id="btnDiagnostico" class="btn-secundario" style="width:100%;margin-top:10px" hidden>🩺 Testar conexão com o banco</button>
-        <div id="resultadoDiagnostico" class="periodo resultado" hidden></div>
-        <button type="button" id="btnCopiarDiagnostico" class="btn-link" hidden>📋 Copiar relatório</button>
         <h3 class="subtitulo" id="tituloRelatorio" hidden>Relatório da última migração</h3>
         <div id="relatorioMigracao" class="periodo" hidden></div>
         <p class="dica" style="margin:12px 0">Os dados continuam salvos neste aparelho e funcionam sem internet.</p>
@@ -478,6 +484,29 @@
   </main>
 
   <footer class="rodape">Movix • Sua jornada. Seu dinheiro. Seu controle.</footer>
+  <!-- RESUMO DE ENCERRAMENTO DO TURNO -->
+  <dialog id="dlgTurno" class="dlg-turno" aria-labelledby="tituloResumo">
+    <h3 id="tituloResumo">Resumo do turno ⏹</h3>
+    <div id="resumoEncerramento" class="periodo resultado"></div>
+    <p id="notaEncerramento" class="dica"></p>
+    <div class="linha-2">
+      <div><label for="ganhosResumo">Ganhos no turno (R$)</label><input type="number" id="ganhosResumo" min="0" step="0.01" inputmode="decimal"></div>
+      <div><label for="entregasResumo">Entregas realizadas</label><input type="number" id="entregasResumo" min="0" step="1" inputmode="numeric"></div>
+    </div>
+    <div class="linha-2">
+      <div><label for="kmResumo">Km rodados (opcional)</label><input type="number" id="kmResumo" min="0" step="0.1" inputmode="decimal"></div>
+      <div><label for="categoriaResumo">Categoria do ganho</label><select id="categoriaResumo"></select></div>
+    </div>
+    <button type="button" id="btnResumoGanhosDia" class="btn-link">Usar os ganhos já registrados nesta data</button>
+    <p id="msgResumo" class="aviso" role="status"></p>
+    <button type="button" id="btnResumoLancar" class="btn-principal">Registrar e lançar ganhos</button>
+    <button type="button" id="btnResumoSemLancar" class="btn-secundario">Registrar sem lançar ganhos</button>
+    <div class="dlg-links">
+      <button type="button" id="btnResumoFormulario" class="btn-link">Preencher no formulário</button>
+      <button type="button" id="btnResumoDepois" class="btn-link">Decidir depois</button>
+    </div>
+  </dialog>
+
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="script.js"></script>
