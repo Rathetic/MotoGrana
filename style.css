@@ -325,3 +325,20 @@ html.tela-auth .so-lobby { display: inline-block; margin: 0 0 8px; }
   .lobby-previa .card-lucro strong { font-size: 2rem; }
   .card-comb { grid-column: auto; }
 }
+
+/* ===== Frete por km: busca de endereço e resultado ===== */
+.sugestoes {
+  margin-top: 6px; list-style: none; max-height: 220px; overflow-y: auto;
+  background: var(--fundo); border: 1px solid var(--violeta); border-radius: 12px;
+}
+.sugestoes[hidden] { display: none; }
+.sugestoes button {
+  display: block; width: 100%; padding: 10px 12px; text-align: left; font: inherit; font-size: .9rem;
+  color: var(--texto); background: transparent; border: none; cursor: pointer;
+}
+.sugestoes button:hover, .sugestoes button:focus-visible { background: rgba(139, 92, 246, .2); outline: none; }
+#freteBlocoAuto .btn-secundario { width: 100%; }
+#freteBlocoAuto .btn-secundario, #acoesFrete { margin-top: 12px; }
+#resultadoFrete p span:last-child { text-align: right; overflow-wrap: anywhere; }
+#resultadoFrete p span:first-child { flex: none; }
+#acoesFrete[hidden] { display: none; }
